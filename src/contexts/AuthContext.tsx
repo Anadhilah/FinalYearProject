@@ -103,9 +103,10 @@ const fetchProfile = async (userId: string, authUser?: { email?: string; app_met
       .single();
 
 if (error) {
-      // PGRST116 = no row found (.single() with zero rows). Return null so
-      // loadUser can self-heal by creating the missing profile row.
-      if (error.code === "PGRST116") {
+      // PGRST116 = no row found (.single() with zero rows). PostgREST also
+      // returns HTTP 406 "Not Acceptable" when .single() finds zero rows, so
+      // treat both as a missing profile and let loadUser self-heal.
+      if (error.code === "PGRST116" || error.code === "406") {
         return null;
       }
 
@@ -158,7 +159,7 @@ const authResponse = await supabase.auth.getUser();
       };
 
 try {
-        // Use the SECURITY DEFINER RPC (bypasses RLS) to reliably ensure the
+        // Prefer the SECURITY DEFINER RPC (bypasses RLS) to reliably ensure the
         // profile row exists. Plain inserts/upserts over the table can fail
         // with 406/409 when auth.uid() is unreliable or RLS hides the row.
         const { data: rpcResult, error: upsertError } = await supabase.rpc(
@@ -178,15 +179,51 @@ try {
           }
         );
         if (upsertError) throw upsertError;
-        profile = (rpcResult as RawUser | null | undefined) ?? newProfile;
-      } catch (insertError) {
-        console.debug("Failed to auto-create user profile:", insertError);
+        profile = (rpcResult as RawUser | null | undefined) ?? null;
+      } catch (rpcError) {
+        // The RPC may not exist in the database yet (404) or may be blocked by
+        // permissions. Fall back to a direct insert, which is allowed by the
+        // "Users insert own profile" RLS policy (row id == auth.uid()).
+        console.debug("ensure_user_profile RPC failed, falling back to direct insert:", rpcError);
+        try {
+          const { data: inserted, error: insertError } = await supabase
+            .from("User")
+            .insert({
+              id: userId,
+              email: authUser?.email ?? "",
+              name,
+              role: metaRoleString,
+              isApproved: false,
+              emailVerified: authUser?.email_confirmed_at != null,
+              recruiterStatus: null,
+              company: null,
+              industry: null,
+              registrationNumber: null,
+              proofDocUrl: null,
+            })
+            .select()
+            .maybeSingle();
+          if (insertError) throw insertError;
+          profile = (inserted as RawUser | null | undefined) ?? null;
+        } catch (insertError) {
+          console.debug("Failed to insert user profile row:", insertError);
+          profile = null;
+        }
+      }
+
+      // CRITICAL: verify the row was actually persisted. If not, the user's
+      // profile row is missing from the "User" table, which will cause child
+      // inserts (e.g. "Application") to fail with a foreign-key violation.
+      // Re-fetch via RLS to confirm the row is now visible to the session.
+      if (profile) {
+        const verified = await fetchProfile(userId, authUser);
+        profile = verified;
       }
     }
 
-    if (!profile) {
+if (!profile) {
       throw new Error(
-        "Could not load user profile and failed to create one. Please contact support."
+        "Could not load user profile and failed to create one. Your account profile row is missing from the database. Please run the SQL in supabase/migrations/20240101_ensure_profile_rls.sql in the Supabase SQL editor, then contact support if it persists."
       );
     }
 

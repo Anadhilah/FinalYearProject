@@ -85,8 +85,13 @@ export default function InternshipDetails() {
       setSubmitted(true);
       setAlreadyApplied(true);
       toast({ title: "Application submitted", description: "Your application has been sent successfully." });
-    } catch (err) {
-      toast({ title: "Application failed", description: "Your application could not be sent. Please try again.", variant: "destructive" });
+} catch (err) {
+      const msg =
+        (err as { message?: string })?.message ||
+        (err as { details?: string })?.details ||
+        "Your application could not be sent. Please try again.";
+      console.error("Apply error:", err);
+      toast({ title: "Application failed", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }

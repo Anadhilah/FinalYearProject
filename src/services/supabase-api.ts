@@ -235,6 +235,127 @@ export async function fetchMyApplications(): Promise<Application[]> {
   return (data as Application[]) || [];
 }
 
+/**
+ * Ensures the current user has a row in the "User" table. Child tables
+ * (e.g. "Application") have a foreign key to "User", so an insert fails with
+ * a 23503 foreign-key violation if the user's profile row is missing (e.g. the
+ * signup trigger didn't run). This uses the SECURITY DEFINER RPC which bypasses
+ * RLS, falling back to a direct insert if the RPC isn't available.
+ *
+ * @returns the user's id (throws if the row could not be ensured)
+ */
+async function ensureUserProfileRow(userId: string): Promise<string> {
+  const { data: authData } = await supabase.auth.getUser();
+  const authUser = authData?.user;
+  if (!authUser?.email) return userId;
+
+  const metaRole =
+    (authUser.app_metadata?.role as string | undefined) ??
+    (authUser.user_metadata?.role as string | undefined) ??
+    "STUDENT";
+  const name =
+    typeof authUser.user_metadata?.name === "string"
+      ? authUser.user_metadata.name
+      : authUser.email.split("@")[0] ?? "User";
+  const now = new Date().toISOString();
+
+  // 0) If a row already exists for this auth id, we're done.
+  const { data: existing } = await supabase
+    .from(TABLES.USER)
+    .select("id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (existing?.id) return userId;
+
+  // 0b) The account email may already exist in "User" under a DIFFERENT id
+  // (e.g. the auth user and the User row drifted apart). In that case the
+  // unique email constraint blocks a fresh insert, and the FK needs a row
+  // with THIS auth id. Reconcile by pointing the existing row at this id.
+  const { data: existingByEmail } = await supabase
+    .from(TABLES.USER)
+    .select("id")
+    .eq("email", authUser.email)
+    .maybeSingle();
+  if (existingByEmail?.id && existingByEmail.id !== userId) {
+    const { error: reconcileError } = await supabase
+      .from(TABLES.USER)
+      .update({ id: userId, updatedAt: now })
+      .eq("id", existingByEmail.id);
+    if (reconcileError) {
+      // eslint-disable-next-line no-console
+      console.error("Failed to reconcile user id by email:", reconcileError);
+    } else {
+      // eslint-disable-next-line no-console
+      console.info(
+        `Reconciled existing User row (old id ${existingByEmail.id}) to auth id ${userId}.`
+      );
+      return userId;
+    }
+  }
+
+  // 1) Try the SECURITY DEFINER RPC (bypasses RLS).
+  try {
+    const { error } = await supabase.rpc("ensure_user_profile", {
+      p_id: userId,
+      p_email: authUser.email,
+      p_name: name,
+      p_role: metaRole,
+      p_is_approved: false,
+      p_email_verified: authUser.email_confirmed_at != null,
+      p_recruiter_status: null,
+      p_company: null,
+      p_industry: null,
+      p_registration_number: null,
+      p_proof_doc_url: null,
+    });
+    if (!error) {
+      // Verify the row actually exists now.
+      const { data: check } = await supabase
+        .from(TABLES.USER)
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+      if (check?.id) return userId;
+    }
+    // eslint-disable-next-line no-console
+    console.error("ensure_user_profile RPC failed:", error);
+  } catch (rpcErr) {
+    // eslint-disable-next-line no-console
+    console.error("ensure_user_profile RPC threw:", rpcErr);
+  }
+
+  // 2) Fall back to a direct insert (allowed if RLS permits id == auth.uid()).
+  const { error: upsertError } = await supabase.from(TABLES.USER).upsert(
+    {
+      id: userId,
+      email: authUser.email,
+      name,
+      role: metaRole,
+      isApproved: false,
+      emailVerified: authUser.email_confirmed_at != null,
+      recruiterStatus: null,
+      company: null,
+      industry: null,
+      registrationNumber: null,
+      proofDocUrl: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    { onConflict: "id" }
+  );
+  if (upsertError) {
+    // eslint-disable-next-line no-console
+    console.error("Direct upsert of user profile failed:", upsertError);
+    throw new Error(
+      `Could not create your profile row in the "User" table. The apply would violate a foreign key that requires a matching User row. ` +
+        `This is usually a database setup issue: the app role needs INSERT/GRANT access on the "User" table and the ensure_user_profile function. ` +
+        `Run supabase/schema.sql (GRANTS + ensure_user_profile) in the Supabase SQL editor. Underlying error: ${upsertError.message}`
+    );
+  }
+
+  return userId;
+}
+
 /** Creates a new application. */
 export async function createApplication(payload: {
   internshipId: string;
@@ -244,20 +365,47 @@ export async function createApplication(payload: {
   const { data: user } = await supabase.auth.getUser();
   if (!user?.user?.id) throw new Error("You must be signed in to apply.");
 
-const { data, error } = await supabase
+  // Ensure the student's profile row exists so the FK constraint is satisfied.
+  await ensureUserProfileRow(user.user.id);
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
     .from(TABLES.APPLICATION)
-    .insert({ id: newId(), ...payload, studentId: user.user.id, status: "pending" })
+    .insert({
+      id: newId(),
+      ...payload,
+      studentId: user.user.id,
+      status: "PENDING",
+      createdAt: now,
+      updatedAt: now,
+    })
     .select()
     .single();
-  throwIfError(error, "Failed to submit application");
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error("Application insert failed:", error);
+    throw error;
+  }
   return data as Application;
+}
+
+/**
+ * Normalizes an ApplicationStatus enum value to UPPERCASE.
+ * The database enum uses uppercase values (PENDING, ACCEPTED, REJECTED,
+ * REVIEWING), while the UI uses lowercase. This keeps both in sync.
+ */
+function normalizeApplicationStatus(status: string): string {
+  return status.toUpperCase();
 }
 
 /** Updates an application status (recruiter action). */
 export async function updateApplicationStatus(id: string, status: string): Promise<void> {
   const { error } = await supabase
     .from(TABLES.APPLICATION)
-    .update({ status, updatedAt: new Date().toISOString() })
+    .update({
+      status: normalizeApplicationStatus(status),
+      updatedAt: new Date().toISOString(),
+    })
     .eq("id", id);
   throwIfError(error, "Failed to update application status");
 }
