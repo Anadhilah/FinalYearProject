@@ -1,0 +1,10 @@
+# Netlify build configuration
+# The git repo (Anadhilah/FinalYearProject) root is this folder (internship-connect-ui),
+# so package.json is at the repo root. Do NOT set base to a nested internship-connect-ui path.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"

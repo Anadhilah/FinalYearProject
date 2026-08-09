@@ -18,3 +18,16 @@ Make student login succeed even when the `User` profile row is missing and the
 - [x] Fix `updateApplicationStatus` to uppercase the status via `normalizeApplicationStatus`
 - [x] Surfaced the real PostgREST error in the toast/console for easier debugging
 - [x] Verify typecheck passes (tsc --noEmit exit 0)
+
+## Follow-up: Agora edge function (CORS)
+- [x] Replaced custom byte-builder (invalid "006" format) with official `agora-access-token` (AccessToken2 "007")
+- [x] Verified `RtcTokenBuilder.buildTokenWithUid` + `RtcRole.PUBLISHER` generate a valid token
+- [x] Kept correct CORS headers
+- [ ] Deploy the function in Supabase dashboard + add Agora secrets
+
+## Follow-up: Netlify build failure (ENOENT package.json)
+- Root cause: git repo root = `internship-connect-ui` itself, but Netlify base directory was set to
+  `internship-connect-ui`, doubling the path to `internship-connect-ui/internship-connect-ui/package.json`
+- [x] Added `netlify.toml` at repo root (command = `npm run build`, publish = `dist`, no base dir)
+- [x] Verified `npm run build` passes locally (dist generated)
+- [ ] Action: In Netlify dashboard, clear the Base directory field (dashboard value overrides netlify.toml)
