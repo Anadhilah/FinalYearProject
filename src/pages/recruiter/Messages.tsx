@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ChatConversation } from "@/types/chat";
 import { fetchConversations, sendConversationMessage } from "@/services/chat";
+import { useChatRealtime } from "@/hooks/useChatRealtime";
 import ConversationList from "@/components/chat/ConversationList";
 import ChatWindow from "@/components/chat/ChatWindow";
 import { MessageCircle } from "lucide-react";
@@ -35,8 +36,10 @@ export default function RecruiterMessages() {
       }
     };
 
-    loadConversations();
+loadConversations();
   }, [user]);
+
+  useChatRealtime(user?.id, setConversations, setSelected);
 
   const handleSendMessage = async (conversationId: string, text: string) => {
     const message = await sendConversationMessage(conversationId, text);

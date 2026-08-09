@@ -125,6 +125,44 @@ export const fetchConversations = async (): Promise<ChatConversation[]> => {
   return conversations;
 };
 
+export interface RealtimeMessage {
+  conversationId: string;
+  message: ChatMessage;
+}
+
+/**
+ * Subscribes to realtime inserts on the Message table. Because RLS is enabled
+ * on the Message table, Supabase realtime only delivers inserts for messages
+ * the current user is permitted to read (i.e. messages in conversations the
+ * user is a participant of). Returns an unsubscribe function.
+ */
+export const subscribeToMessages = (
+  onMessage: (payload: RealtimeMessage) => void
+): (() => void) => {
+  const channel = supabase
+    .channel("messages-realtime")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: TABLES.MESSAGE },
+      (payload) => {
+        const row = payload.new as Record<string, unknown> | null;
+        if (!row) return;
+        const message: ChatMessage = {
+          id: String(row.id),
+          senderId: String(row.senderId),
+          text: String(row.text),
+          timestamp: (row.createdAt as string) || new Date().toISOString(),
+        };
+        onMessage({ conversationId: String(row.conversationId), message });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
+
 /** Sends a message in a conversation. */
 export const sendConversationMessage = async (conversationId: string, text: string): Promise<ChatMessage> => {
   const { data: user } = await supabase.auth.getUser();

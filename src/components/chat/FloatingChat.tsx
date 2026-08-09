@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ChatConversation } from "@/types/chat";
 import { fetchConversations, sendConversationMessage } from "@/services/chat";
+import { useChatRealtime } from "@/hooks/useChatRealtime";
 import ConversationList from "./ConversationList";
 import ChatWindow from "./ChatWindow";
 
@@ -14,12 +15,14 @@ export default function FloatingChat() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<ChatConversation | null>(null);
 
-  useEffect(() => {
+useEffect(() => {
     if (!user || user.role === "admin") return;
     fetchConversations()
       .then(setConversations)
       .catch((err) => console.error("Failed to load conversations:", err));
   }, [user]);
+
+  useChatRealtime(user?.id, setConversations, setSelectedConv);
 
   if (!user || user.role === "admin") return null;
 
