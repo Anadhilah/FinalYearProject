@@ -14,3 +14,9 @@ Make messages appear instantly for the receiver without requiring a page refresh
 - [x] 8. Verify TypeScript compiles (`npx tsc --noEmit`)
 - [x] 9. Update this TODO file to mark completed steps
 
+## Round 2 — Reliability fix (messages still required refresh)
+- [x] 10. Make `subscribeToMessages` robust: unique channel names + status/error handling (`src/services/chat.ts`)
+- [x] 11. Add polling fallback in `useChatRealtime` so messages appear automatically even if realtime is delayed/not configured (`src/hooks/useChatRealtime.ts`)
+- [x] 12. Update migration with verification + re-apply instructions, and make it idempotent (fixes ERROR 42710) (`supabase/migrations/20240102_enable_realtime_messages.sql`)
+- [x] 13. Verify TypeScript compiles (`npx tsc --noEmit`)
+- [x] 14. Update this TODO file to mark completed steps

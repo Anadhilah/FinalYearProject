@@ -1,12 +1,48 @@
 import { useEffect } from "react";
-import { subscribeToMessages } from "@/services/chat";
+import { subscribeToMessages, fetchConversations } from "@/services/chat";
 import type { ChatConversation } from "@/types/chat";
 
 /**
- * Subscribes to realtime message inserts and updates the conversations state
- * (and the currently selected conversation) in place. Incoming messages are
- * deduplicated by id so the sender does not see their own optimistically added
- * message twice.
+ * Merges an incoming message into a conversation in place, deduping by id so
+ * neither the sender's optimistic message nor a duplicate realtime event is
+ * shown twice.
+ */
+function mergeMessage(
+  conv: ChatConversation,
+  message: ChatConversation["messages"][number]
+): ChatConversation {
+  if (conv.messages.some((m) => m.id === message.id)) return conv;
+  return {
+    ...conv,
+    messages: [...conv.messages, message],
+    lastActivity:
+      message.timestamp > conv.lastActivity
+        ? message.timestamp
+        : conv.lastActivity,
+  };
+}
+
+/**
+ * Reconciles the fetched conversations into state, preserving the currently
+ * open conversation and refreshing both the list and the selected conversation.
+ */
+function reconcile(
+  setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>,
+  setSelected: React.Dispatch<React.SetStateAction<ChatConversation | null>>,
+  data: ChatConversation[]
+) {
+  setConversations(data);
+  setSelected((prev) => {
+    if (!prev) return prev;
+    return data.find((c) => c.id === prev.id) ?? prev;
+  });
+}
+
+/**
+ * Subscribes to realtime message inserts AND polls as a safety net. The
+ * polling guarantees messages appear automatically (no manual refresh) even
+ * if realtime delivery is delayed or the realtime publication hasn't been
+ * configured yet.
  */
 export function useChatRealtime(
   currentUserId: string | undefined,
@@ -16,35 +52,39 @@ export function useChatRealtime(
   useEffect(() => {
     if (!currentUserId) return;
 
+    // Fast path: realtime inserts.
     const unsubscribe = subscribeToMessages(({ conversationId, message }) => {
       // Ignore messages the current user sent themselves (they are already
       // appended locally after sending).
       if (message.senderId === currentUserId) return;
 
       setConversations((prev) =>
-        prev.map((conv) => {
-          if (conv.id !== conversationId) return conv;
-          // Prevent duplicates if the same message somehow arrives twice.
-          if (conv.messages.some((m) => m.id === message.id)) return conv;
-          return {
-            ...conv,
-            messages: [...conv.messages, message],
-            lastActivity: message.timestamp,
-          };
-        })
+        prev.map((conv) =>
+          conv.id === conversationId ? mergeMessage(conv, message) : conv
+        )
       );
 
       setSelected((prev) => {
         if (!prev || prev.id !== conversationId) return prev;
-        if (prev.messages.some((m) => m.id === message.id)) return prev;
-        return {
-          ...prev,
-          messages: [...prev.messages, message],
-          lastActivity: message.timestamp,
-        };
+        return mergeMessage(prev, message);
       });
     });
 
-    return unsubscribe;
-  }, [currentUserId, setConversations, setSelected]);
+    // Safety-net fallback: periodically refetch all conversations so new
+    // messages appear even if a realtime event was missed or not configured.
+    const interval = setInterval(async () => {
+      try {
+        const data = await fetchConversations();
+        reconcile(setConversations, setSelected, data);
+      } catch (err) {
+        console.error("[chat] poll fallback failed", err);
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
 }

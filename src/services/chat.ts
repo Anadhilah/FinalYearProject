@@ -131,16 +131,37 @@ export interface RealtimeMessage {
 }
 
 /**
+ * Fetches just the messages for a single conversation. Used as a lightweight
+ * polling fallback so messages appear automatically even if realtime delivery
+ * is delayed or the migration hasn't been applied yet.
+ */
+export const fetchMessagesForConversation = async (
+  conversationId: string
+): Promise<ChatMessage[]> => {
+  return fetchMessages(conversationId);
+};
+
+/**
  * Subscribes to realtime inserts on the Message table. Because RLS is enabled
  * on the Message table, Supabase realtime only delivers inserts for messages
  * the current user is permitted to read (i.e. messages in conversations the
  * user is a participant of). Returns an unsubscribe function.
+ *
+ * Each call uses a unique channel name so multiple subscribers (e.g. the
+ * global FloatingChat and the Messages pages) don't share/tear down each
+ * other's channels. A status callback is exposed so callers can detect when
+ * the subscription fails (e.g. the table isn't in the realtime publication).
  */
 export const subscribeToMessages = (
-  onMessage: (payload: RealtimeMessage) => void
+  onMessage: (payload: RealtimeMessage) => void,
+  onStatus?: (status: "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT") => void
 ): (() => void) => {
+  const channelName = `messages-realtime-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
   const channel = supabase
-    .channel("messages-realtime")
+    .channel(channelName)
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: TABLES.MESSAGE },
@@ -156,7 +177,14 @@ export const subscribeToMessages = (
         onMessage({ conversationId: String(row.conversationId), message });
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (status === "SUBSCRIBED") {
+        onStatus?.("SUBSCRIBED");
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.error("[realtime] message channel error", status, err);
+        onStatus?.(status);
+      }
+    });
 
   return () => {
     supabase.removeChannel(channel);
