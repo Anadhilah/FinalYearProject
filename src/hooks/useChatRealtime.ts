@@ -70,8 +70,9 @@ export function useChatRealtime(
       });
     });
 
-    // Safety-net fallback: periodically refetch all conversations so new
+// Safety-net fallback: periodically refetch all conversations so new
     // messages appear even if a realtime event was missed or not configured.
+    // Polling every 3s keeps the fallback near-instant.
     const interval = setInterval(async () => {
       try {
         const data = await fetchConversations();
@@ -79,7 +80,7 @@ export function useChatRealtime(
       } catch (err) {
         console.error("[chat] poll fallback failed", err);
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       clearInterval(interval);

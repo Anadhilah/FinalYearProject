@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ChatConversation } from "@/types/chat";
-import { fetchConversations, sendConversationMessage } from "@/services/chat";
+import { fetchConversations, sendConversationMessage, buildOptimisticMessage } from "@/services/chat";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import ConversationList from "./ConversationList";
 import ChatWindow from "./ChatWindow";
@@ -27,19 +27,53 @@ useEffect(() => {
   if (!user || user.role === "admin") return null;
 
 const handleSendMessage = async (conversationId: string, text: string): Promise<void> => {
-    const message = await sendConversationMessage(conversationId, text);
-    setConversations((prev) =>
+    const optimistic = buildOptimisticMessage(user.id, text);
+    const applyOptimistic = (prev: ChatConversation[]) =>
       prev.map((c) =>
         c.id === conversationId
-          ? { ...c, messages: [...c.messages, message], lastActivity: message.timestamp }
+          ? { ...c, messages: [...c.messages, optimistic], lastActivity: optimistic.timestamp }
           : c
-      )
-    );
+      );
+    setConversations(applyOptimistic);
     setSelectedConv((prev) =>
       prev && prev.id === conversationId
-        ? { ...prev, messages: [...prev.messages, message], lastActivity: message.timestamp }
+        ? { ...prev, messages: [...prev.messages, optimistic], lastActivity: optimistic.timestamp }
         : prev
     );
+
+    try {
+      const message = await sendConversationMessage(conversationId, text);
+      const swap = (prev: ChatConversation[]) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) => (m.id === optimistic.id ? message : m)),
+                lastActivity: message.timestamp,
+              }
+            : c
+        );
+      setConversations(swap);
+      setSelectedConv((prev) =>
+        prev && prev.id === conversationId
+          ? { ...prev, messages: prev.messages.map((m) => (m.id === optimistic.id ? message : m)), lastActivity: message.timestamp }
+          : prev
+      );
+    } catch (err) {
+      const remove = (prev: ChatConversation[]) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, messages: c.messages.filter((m) => m.id !== optimistic.id) }
+            : c
+        );
+      setConversations(remove);
+      setSelectedConv((prev) =>
+        prev && prev.id === conversationId
+          ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) }
+          : prev
+      );
+      throw err;
+    }
   };
 
   const unreadCount = conversations.length;

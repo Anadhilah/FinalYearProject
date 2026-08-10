@@ -131,6 +131,22 @@ export interface RealtimeMessage {
 }
 
 /**
+ * Builds a temporary "optimistic" message so the sender sees their message
+ * instantly, before the DB insert completes. It is replaced by the real row
+ * once `sendConversationMessage` resolves. The temp id is prefixed with
+ * "temp_" so callers can find and swap it out.
+ */
+export const buildOptimisticMessage = (
+  senderId: string,
+  text: string
+): ChatMessage => ({
+  id: `temp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+  senderId,
+  text,
+  timestamp: new Date().toISOString(),
+});
+
+/**
  * Fetches just the messages for a single conversation. Used as a lightweight
  * polling fallback so messages appear automatically even if realtime delivery
  * is delayed or the migration hasn't been applied yet.

@@ -40,6 +40,20 @@ export default defineConfig(({ mode }) => ({
             purpose: "any maskable",
           },
         ],
+        screenshots: [
+          {
+            src: "/logo.png",
+            sizes: "540x720",
+            type: "image/png",
+            form_factor: "narrow",
+          },
+          {
+            src: "/logo.png",
+            sizes: "1280x720",
+            type: "image/png",
+            form_factor: "wide",
+          },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],

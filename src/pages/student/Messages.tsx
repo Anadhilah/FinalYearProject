@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ChatConversation } from "@/types/chat";
-import { fetchConversations, sendConversationMessage } from "@/services/chat";
+import { fetchConversations, sendConversationMessage, buildOptimisticMessage } from "@/services/chat";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import ConversationList from "@/components/chat/ConversationList";
 import ChatWindow from "@/components/chat/ChatWindow";
@@ -39,24 +39,64 @@ loadConversations();
 
   useChatRealtime(user?.id, setConversations, setSelected);
 
-  const handleSendMessage = async (conversationId: string, text: string): Promise<void> => {
-    const message = await sendConversationMessage(conversationId, text);
-    setConversations((prev) =>
+const handleSendMessage = async (conversationId: string, text: string): Promise<void> => {
+    if (!user) return;
+    // Optimistic: show the sender's message instantly.
+    const optimistic = buildOptimisticMessage(user.id, text);
+    const applyOptimistic = (prev: ChatConversation[]) =>
       prev.map((conversation) =>
         conversation.id === conversationId
           ? {
               ...conversation,
-              messages: [...conversation.messages, message],
-              lastActivity: message.timestamp,
+              messages: [...conversation.messages, optimistic],
+              lastActivity: optimistic.timestamp,
             }
           : conversation
-      )
-    );
+      );
+    setConversations(applyOptimistic);
     setSelected((prev) =>
       prev && prev.id === conversationId
-        ? { ...prev, messages: [...prev.messages, message], lastActivity: message.timestamp }
+        ? { ...prev, messages: [...prev.messages, optimistic], lastActivity: optimistic.timestamp }
         : prev
     );
+
+    try {
+      const message = await sendConversationMessage(conversationId, text);
+      // Swap the temp message for the real one.
+      const swap = (prev: ChatConversation[]) =>
+        prev.map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                messages: conversation.messages.map((m) =>
+                  m.id === optimistic.id ? message : m
+                ),
+                lastActivity: message.timestamp,
+              }
+            : conversation
+        );
+      setConversations(swap);
+      setSelected((prev) =>
+        prev && prev.id === conversationId
+          ? { ...prev, messages: prev.messages.map((m) => (m.id === optimistic.id ? message : m)), lastActivity: message.timestamp }
+          : prev
+      );
+    } catch (err) {
+      // On failure, remove the optimistic message so we don't show a ghost.
+      const remove = (prev: ChatConversation[]) =>
+        prev.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, messages: conversation.messages.filter((m) => m.id !== optimistic.id) }
+            : conversation
+        );
+      setConversations(remove);
+      setSelected((prev) =>
+        prev && prev.id === conversationId
+          ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) }
+          : prev
+      );
+      throw err;
+    }
   };
 
   return (
