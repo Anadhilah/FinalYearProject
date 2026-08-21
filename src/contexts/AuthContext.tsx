@@ -59,21 +59,21 @@ interface RawUser {
   hrEmail?: string | null;
 }
 
-const mapRawUser = (raw: RawUser): User => ({
-  id: raw.id,
-  name: raw.name ?? "User",
-  email: raw.email ?? "",
-  role: (raw.role ?? "student").toLowerCase() as UserRole,
-  isApproved: raw.isApproved,
-  recruiterStatus: raw.recruiterStatus?.toLowerCase?.(),
-  emailVerified: raw.emailVerified,
-  company: raw.company,
-  industry: raw.industry,
-  companyAddress: raw.companyAddress,
-  registrationNumber: raw.registrationNumber,
-  proofDocUrl: raw.proofDocUrl,
-  hrName: raw.hrName,
-  hrEmail: raw.hrEmail,
+const mapRawUser = (raw: RawUser | null | undefined): User => ({
+  id: raw?.id ?? "",
+  name: raw?.name ?? "User",
+  email: raw?.email ?? "",
+  role: (raw?.role ?? "student").toLowerCase() as UserRole,
+  isApproved: raw?.isApproved,
+  recruiterStatus: raw?.recruiterStatus?.toLowerCase?.(),
+  emailVerified: raw?.emailVerified,
+  company: raw?.company,
+  industry: raw?.industry,
+  companyAddress: raw?.companyAddress,
+  registrationNumber: raw?.registrationNumber,
+  proofDocUrl: raw?.proofDocUrl,
+  hrName: raw?.hrName,
+  hrEmail: raw?.hrEmail,
 });
 
 const AuthContext = createContext<AuthContextType | null>(null);
