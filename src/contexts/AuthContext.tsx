@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { supabase } from "@/lib/supabaseClient";
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 
 export type UserRole = "student" | "recruiter" | "admin";
 
@@ -83,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("ic_user");
     return stored ? JSON.parse(stored) : null;
   });
+  const registrationInProgress = useRef(false);
 
   const persistUser = (userData: User | null) => {
     setUser(userData);
@@ -266,6 +267,8 @@ const initialize = async () => {
     initialize();
 
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (registrationInProgress.current && session?.user?.id) return;
+
       if (session?.user?.id) {
         try {
           await loadUser(session.user.id);
@@ -326,62 +329,67 @@ const initialize = async () => {
       proofDocUrl?: string;
     }
   ) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name, role: role.toUpperCase() },
-      },
-    });
-    if (error) {
-      console.error("Registration error:", error);
-      throw error;
-    }
+    registrationInProgress.current = true;
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name, role: role.toUpperCase() },
+        },
+      });
+      if (error) {
+        console.error("Registration error:", error);
+        throw error;
+      }
 
-    if (!data.user?.id) {
-      throw new Error("Registration succeeded but no user id was returned.");
-    }
+      if (!data.user?.id) {
+        throw new Error("Registration succeeded but no user id was returned.");
+      }
 
-    const profilePayload = {
-      id: data.user.id,
-      email,
-      name,
-      role: role.toUpperCase(),
-      isApproved: false,
-      emailVerified: true,
-      recruiterStatus: role === "recruiter" ? "PENDING" : null,
-      company: extra?.company ?? null,
-      industry: extra?.industry ?? null,
-      registrationNumber: extra?.registrationNumber ?? null,
-      proofDocUrl: extra?.proofDocUrl ?? null,
-    } as const;
+      const profilePayload = {
+        id: data.user.id,
+        email,
+        name,
+        role: role.toUpperCase(),
+        isApproved: false,
+        emailVerified: true,
+        recruiterStatus: role === "recruiter" ? "PENDING" : null,
+        company: extra?.company ?? null,
+        industry: extra?.industry ?? null,
+        registrationNumber: extra?.registrationNumber ?? null,
+        proofDocUrl: extra?.proofDocUrl ?? null,
+      } as const;
 
     // Use the SECURITY DEFINER RPC (bypasses RLS) so registration reliably
     // creates/adopts the profile row without 409 conflicts with the
     // handle_new_user trigger.
-    const { data: rpcProfile, error: insertError } = await supabase.rpc(
-      "ensure_user_profile",
-      {
-        p_id: data.user.id,
-        p_email: email,
-        p_name: name,
-        p_role: role.toUpperCase(),
-        p_is_approved: false,
-        p_email_verified: true,
-        p_recruiter_status: role === "recruiter" ? "PENDING" : null,
-        p_company: extra?.company ?? null,
-        p_industry: extra?.industry ?? null,
-        p_registration_number: extra?.registrationNumber ?? null,
-        p_proof_doc_url: extra?.proofDocUrl ?? null,
+      const { data: rpcProfile, error: insertError } = await supabase.rpc(
+        "ensure_user_profile",
+        {
+          p_id: data.user.id,
+          p_email: email,
+          p_name: name,
+          p_role: role.toUpperCase(),
+          p_is_approved: false,
+          p_email_verified: true,
+          p_recruiter_status: role === "recruiter" ? "PENDING" : null,
+          p_company: extra?.company ?? null,
+          p_industry: extra?.industry ?? null,
+          p_registration_number: extra?.registrationNumber ?? null,
+          p_proof_doc_url: extra?.proofDocUrl ?? null,
+        }
+      );
+      if (insertError) {
+        console.error("Failed to create user profile row:", insertError);
+        throw insertError;
       }
-    );
-    if (insertError) {
-      console.error("Failed to create user profile row:", insertError);
-      throw insertError;
+      const userData = mapRawUser((rpcProfile ?? profilePayload) as RawUser);
+      persistUser(userData);
+      return userData;
+    } finally {
+      registrationInProgress.current = false;
     }
-    const userData = mapRawUser((rpcProfile ?? profilePayload) as RawUser);
-    persistUser(userData);
-    return userData;
   };
 
   const logout = async () => {
