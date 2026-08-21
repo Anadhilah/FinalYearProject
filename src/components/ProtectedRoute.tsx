@@ -18,12 +18,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     const status = user.recruiterStatus?.toLowerCase();
     const isApproved = user.isApproved === true || status === 'approved';
 
-    // Not yet email-verified → send to verification.
-    if (user.emailVerified === false) {
-      return <Navigate to="/recruiter/verify-email" replace />;
-    }
-
-    // Verified but hasn't completed the onboarding wizard → send there.
+    // Recruiters must complete onboarding before approval.
     if (!isApproved && !user.company) {
       return <Navigate to="/recruiter/onboarding" replace />;
     }

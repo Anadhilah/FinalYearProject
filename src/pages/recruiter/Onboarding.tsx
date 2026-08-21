@@ -41,7 +41,7 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Guard: only email-verified recruiters may complete onboarding.
+  // Guard: only recruiters may complete onboarding.
   useEffect(() => {
     if (!user) {
       navigate("/register");
@@ -50,9 +50,6 @@ export default function Onboarding() {
     if (user.role !== "recruiter") {
       navigate("/");
       return;
-    }
-    if (user.emailVerified === false) {
-      navigate("/recruiter/verify-email");
     }
   }, [user, navigate]);
 

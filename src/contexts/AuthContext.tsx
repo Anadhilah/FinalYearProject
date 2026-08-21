@@ -326,7 +326,13 @@ const initialize = async () => {
       proofDocUrl?: string;
     }
   ) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, role: role.toUpperCase() },
+      },
+    });
     if (error) {
       console.error("Registration error:", error);
       throw error;
@@ -342,7 +348,7 @@ const initialize = async () => {
       name,
       role: role.toUpperCase(),
       isApproved: false,
-      emailVerified: false,
+      emailVerified: true,
       recruiterStatus: role === "recruiter" ? "PENDING" : null,
       company: extra?.company ?? null,
       industry: extra?.industry ?? null,
@@ -361,7 +367,7 @@ const initialize = async () => {
         p_name: name,
         p_role: role.toUpperCase(),
         p_is_approved: false,
-        p_email_verified: false,
+        p_email_verified: true,
         p_recruiter_status: role === "recruiter" ? "PENDING" : null,
         p_company: extra?.company ?? null,
         p_industry: extra?.industry ?? null,
@@ -373,11 +379,9 @@ const initialize = async () => {
       console.error("Failed to create user profile row:", insertError);
       throw insertError;
     }
-    if (rpcProfile) {
-      return mapRawUser(rpcProfile as RawUser);
-    }
-
-    return mapRawUser(profilePayload as RawUser);
+    const userData = mapRawUser((rpcProfile ?? profilePayload) as RawUser);
+    persistUser(userData);
+    return userData;
   };
 
   const logout = async () => {
