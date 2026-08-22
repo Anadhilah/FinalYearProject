@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LayoutDashboard, Users, Settings, LogOut, Menu, X, Shield, Building2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -53,9 +54,9 @@ export default function AdminLayout() {
               <p className="text-xs text-background/50 truncate">Administrator</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="w-full justify-start text-background/70 hover:text-background hover:bg-background/10" onClick={logout}>
+          <LogoutButton variant="ghost" size="sm" className="w-full justify-start text-background/70 hover:text-background hover:bg-background/10">
             <LogOut className="h-4 w-4 mr-2" /> Logout
-          </Button>
+          </LogoutButton>
         </div>
       </aside>
       {sidebarOpen && <div className="fixed inset-0 bg-foreground/20 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}

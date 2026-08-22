@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/LogoutButton";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import logo from "@/assets/logo.png";
@@ -27,7 +28,7 @@ export function Navbar() {
               <Button variant="ghost" size="sm" asChild>
                 <Link to={dashboardPath}>Dashboard</Link>
               </Button>
-              <Button variant="outline" size="sm" onClick={logout}>Logout</Button>
+              <LogoutButton variant="outline" size="sm">Logout</LogoutButton>
             </>
           ) : (
             <>
@@ -58,7 +59,7 @@ export function Navbar() {
               <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
                 <Link to={dashboardPath} onClick={() => setMobileOpen(false)}>Dashboard</Link>
               </Button>
-              <Button variant="outline" size="sm" className="w-full" onClick={() => { logout(); setMobileOpen(false); }}>Logout</Button>
+              <LogoutButton variant="outline" size="sm" className="w-full" onCompleted={() => setMobileOpen(false)}>Logout</LogoutButton>
             </>
           ) : (
             <>

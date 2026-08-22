@@ -336,6 +336,7 @@ const initialize = async () => {
         password,
         options: {
           data: { name, role: role.toUpperCase() },
+          emailRedirectTo: `${window.location.origin}/login`,
         },
       });
       if (error) {
@@ -353,7 +354,7 @@ const initialize = async () => {
         name,
         role: role.toUpperCase(),
         isApproved: false,
-        emailVerified: true,
+        emailVerified: role === "student" || data.user.email_confirmed_at != null,
         recruiterStatus: role === "recruiter" ? "PENDING" : null,
         company: extra?.company ?? null,
         industry: extra?.industry ?? null,
@@ -372,7 +373,7 @@ const initialize = async () => {
           p_name: name,
           p_role: role.toUpperCase(),
           p_is_approved: false,
-          p_email_verified: true,
+          p_email_verified: role === "student" || data.user.email_confirmed_at != null,
           p_recruiter_status: role === "recruiter" ? "PENDING" : null,
           p_company: extra?.company ?? null,
           p_industry: extra?.industry ?? null,

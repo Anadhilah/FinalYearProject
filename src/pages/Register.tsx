@@ -35,7 +35,7 @@ export default function Register() {
     try {
       const newUser = await register(name, email, password, role);
       if (role === "recruiter") {
-        navigate("/recruiter/onboarding");
+        navigate("/recruiter/verify-email");
       } else {
         navigate("/student/onboarding");
       }

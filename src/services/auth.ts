@@ -137,7 +137,12 @@ export const apiAuthenticationServicePost = async (url: string, data?: unknown):
       return wrap(await createApplication({ internshipId, coverLetter, resumeUrl }));
     }
     case /^\/upload\/.+$/.test(url): {
-      const { file } = (data || {}) as { file: File };
+      const file = data instanceof FormData
+        ? data.get("file")
+        : (data as { file?: File } | undefined)?.file;
+      if (!(file instanceof File)) {
+        throw new Error("No file was provided for upload.");
+      }
       const path = await uploadFile(file);
       return wrap({ path });
     }

@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LayoutDashboard, User, Search, FileText, MessageCircle, Video, NotebookPen, LogOut, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -64,9 +65,9 @@ export default function StudentLayout() {
               <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent" onClick={logout}>
+          <LogoutButton variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent">
             <LogOut className="h-4 w-4 mr-2" /> Logout
-          </Button>
+          </LogoutButton>
         </div>
       </aside>
 

@@ -25,7 +25,7 @@ export default function VerifyEmail() {
       return;
     }
     if (user.emailVerified) {
-      navigate(user.company ? "/recruiter/pending" : "/recruiter/onboarding");
+          navigate(user.company ? "/recruiter/pending" : "/recruiter/onboarding");
     }
   }, [user, navigate]);
 
@@ -35,9 +35,9 @@ export default function VerifyEmail() {
     setInfo(null);
 
     try {
-      await refreshUser();
-      if (user?.emailVerified) {
-        navigate(user.company ? "/recruiter/pending" : "/recruiter/onboarding");
+      const refreshedUser = await refreshUser();
+      if (refreshedUser?.emailVerified) {
+        navigate(refreshedUser.company ? "/recruiter/pending" : "/recruiter/onboarding");
         return;
       }
       setInfo(
@@ -82,7 +82,7 @@ export default function VerifyEmail() {
           <div className="h-12 w-12 rounded-xl gradient-hero flex items-center justify-center mx-auto">
             <Mail className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-display font-bold">Verify Your Email</h1>
+          <h1 className="text-2xl font-display font-bold">Sign Up Successful</h1>
           <p className="text-muted-foreground text-sm">
             We sent a confirmation link to <span className="font-medium text-foreground">{email || "your email"}</span>.
           </p>
@@ -90,7 +90,7 @@ export default function VerifyEmail() {
 
         <Card className="shadow-elevated">
           <CardHeader>
-            <CardTitle className="text-lg">Email Confirmation Required</CardTitle>
+            <CardTitle className="text-lg">Confirm your email to continue</CardTitle>
             <CardDescription>
               Click the link in your inbox to confirm your email and continue setting up your recruiter account.
             </CardDescription>
@@ -114,7 +114,7 @@ export default function VerifyEmail() {
                     <Loader2 className="h-4 w-4 animate-spin mr-2" /> Refresh status
                   </>
                 ) : (
-                  "I confirmed my email"
+                  "I have confirmed my email"
                 )}
               </Button>
 

@@ -1,8 +1,9 @@
 
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/LogoutButton";
 import { Clock, ShieldCheck, Mail } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -85,9 +86,14 @@ export default function PendingApproval() {
             </div>
           </div>
           <div className="pt-2">
-            <Button variant="outline" asChild>
-              <Link to="/">Return to Home</Link>
-            </Button>
+            <LogoutButton
+              variant="outline"
+              onCompleted={() => {
+                navigate("/login", { replace: true });
+              }}
+            >
+              Go to Login
+            </LogoutButton>
           </div>
         </CardContent>
       </Card>
