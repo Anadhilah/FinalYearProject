@@ -79,6 +79,7 @@ export default function InternshipDetails() {
       });
       return;
     }
+    
 
     try {
       setSubmitting(true);
