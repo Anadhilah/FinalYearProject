@@ -8,7 +8,7 @@ export interface ChatMessage {
 export interface ChatParticipant {
   id: string;
   name: string;
-  role: "student" | "recruiter" | "admin";
+  role: "student" | "recruiter" | "admin" | "supervisor";
   avatar?: string;
 }
 

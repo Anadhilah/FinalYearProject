@@ -46,6 +46,15 @@ import ManageRecruiters from "./pages/admin/ManageRecruiters";
 import AdminManageInternships from "./pages/admin/ManageInternships";
 import FloatingChat from "./components/chat/FloatingChat";
 
+import SupervisorLayout from "./components/layouts/SupervisorLayout";
+import SupervisorOverview from "./pages/supervisor/Overview";
+import SupervisorStudents from "./pages/supervisor/MyStudents";
+import SupervisorStudentDetails from "./pages/supervisor/StudentDetails";
+import SupervisorLogbooks from "./pages/supervisor/LogbookReview";
+import SupervisorMessages from "./pages/supervisor/Messages";
+import SupervisorActivate from "./pages/supervisor/Activate";
+import ManageSupervisors from "./pages/admin/ManageSupervisors";
+
 
 const queryClient = new QueryClient();
 
@@ -69,6 +78,7 @@ function App() {
             <Route path="/recruiter/pending" element={<PendingApproval />} />
             <Route path="/install" element={<Install />} />
             <Route path="/logbook/share/:token" element={<SharedLogbook />} />
+            <Route path="/supervisor/activate/:token" element={<SupervisorActivate />} />
 
             {/* Student Routes */}
             <Route path="/student/onboarding" element={<ProtectedRoute allowedRoles={["student"]}><StudentOnboarding /></ProtectedRoute>} />
@@ -100,7 +110,17 @@ function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<ManageUsers />} />
               <Route path="recruiters" element={<ManageRecruiters />} />
+              <Route path="supervisors" element={<ManageSupervisors />} />
               <Route path="internships" element={<AdminManageInternships />} />
+            </Route>
+
+            {/* Supervisor Routes */}
+            <Route path="/supervisor" element={<ProtectedRoute allowedRoles={["supervisor"]}><SupervisorLayout /></ProtectedRoute>}>
+              <Route index element={<SupervisorOverview />} />
+              <Route path="students" element={<SupervisorStudents />} />
+              <Route path="students/:studentId" element={<SupervisorStudentDetails />} />
+              <Route path="logbooks" element={<SupervisorLogbooks />} />
+              <Route path="messages" element={<SupervisorMessages />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

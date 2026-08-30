@@ -6,11 +6,12 @@ export const TABLES = {
   USER: "User",
   INTERNSHIP: "Internship",
   APPLICATION: "Application",
-  LOGBOOK_REPORT: "LogbookReport",
+  LOGBOOK_REPORT: "WeeklyLogbookReport",
   CONVERSATION: "Conversation",
   CONVERSATION_PARTICIPANT: "ConversationParticipant",
   MESSAGE: "Message",
   MEETING: "Meeting",
+  SUPERVISOR_INVITATION: "SupervisorInvitation",
 } as const;
 
 export const STORAGE = {

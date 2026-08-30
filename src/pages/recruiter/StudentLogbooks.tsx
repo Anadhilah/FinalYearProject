@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { LOGBOOK_STATUS_LABELS, logbookBadgeClass } from "@/lib/logbookStatus";
 
 interface ReviewItem {
   id: string;
@@ -19,6 +20,7 @@ interface ReviewItem {
   attachmentUrls?: string | null;
   status: string;
   recruiterComment?: string | null;
+  supervisorComment?: string | null;
   createdAt: string;
 }
 
@@ -97,7 +99,7 @@ const res = await api.get<ExportPayload>(`/logbooks/export/${internshipId}`, {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">{report.internship.title} · {report.startDate} to {report.endDate}</p>
-                <Badge variant="outline" className={report.status === "APPROVED" ? "bg-success/10 text-success border-success/20" : report.status === "NEEDS_REVISION" ? "bg-warning/10 text-warning border-warning/20" : "bg-primary/10 text-primary border-primary/20"}>{report.status}</Badge>
+                <Badge variant="outline" className={logbookBadgeClass(report.status)}>{LOGBOOK_STATUS_LABELS[report.status] || report.status}</Badge>
               </div>
               <div className="text-sm space-y-2">
                 <p><span className="font-medium">Tasks:</span> {report.tasksPerformed || "—"}</p>
@@ -105,9 +107,21 @@ const res = await api.get<ExportPayload>(`/logbooks/export/${internshipId}`, {
                 <p><span className="font-medium">Challenges:</span> {report.challengesFaced || "—"}</p>
                 <p><span className="font-medium">Hours:</span> {report.hoursWorked}</p>
               </div>
-              <Textarea value={comments[report.id] || report.recruiterComment || ""} onChange={(e) => setComments({ ...comments, [report.id]: e.target.value })} placeholder="Leave recruiter feedback" rows={3} />
+              {report.supervisorComment && report.status === "SUPERVISOR_CHANGES_REQUESTED" && (
+                <p className="text-sm rounded-lg bg-warning/10 border border-warning/20 p-2">
+                  <span className="font-medium">Supervisor requested changes:</span> {report.supervisorComment}
+                </p>
+              )}
+              <Textarea
+                value={comments[report.id] || report.recruiterComment || ""}
+                onChange={(e) => setComments({ ...comments, [report.id]: e.target.value })}
+                placeholder="Leave recruiter feedback"
+                rows={3}
+              />
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => reviewReport(report.id, "APPROVED")} disabled={loading}>Approve</Button>
+                <Button size="sm" onClick={() => reviewReport(report.id, "APPROVED")} disabled={loading}>
+                  {report.status === "SUPERVISOR_CHANGES_REQUESTED" ? "Re-approve & Forward" : "Approve & Forward to Supervisor"}
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => reviewReport(report.id, "NEEDS_REVISION")} disabled={loading}>Request Revision</Button>
                 <Button size="sm" variant="secondary" onClick={() => exportPdf(report.internship.id)} disabled={loading}>Export Internship PDF Data</Button>
               </div>

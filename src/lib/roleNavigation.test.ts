@@ -10,6 +10,10 @@ describe("getRoleDashboardPath", () => {
     expect(getRoleDashboardPath("recruiter")).toBe("/recruiter");
   });
 
+  it("maps supervisor role to /supervisor", () => {
+    expect(getRoleDashboardPath("supervisor")).toBe("/supervisor");
+  });
+
   it("maps admin role to /admin", () => {
     expect(getRoleDashboardPath("admin")).toBe("/admin");
   });
@@ -17,6 +21,7 @@ describe("getRoleDashboardPath", () => {
   it("is case-insensitive", () => {
     expect(getRoleDashboardPath("STUDENT")).toBe("/student");
     expect(getRoleDashboardPath("Recruiter")).toBe("/recruiter");
+    expect(getRoleDashboardPath("SUPERVISOR")).toBe("/supervisor");
     expect(getRoleDashboardPath("ADMIN")).toBe("/admin");
   });
 

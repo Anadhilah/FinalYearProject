@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
+import { getRoleDashboardPath } from "@/lib/roleNavigation";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import logo from "@/assets/logo.png";
@@ -10,7 +11,7 @@ export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const dashboardPath = user?.role === "student" ? "/student" : user?.role === "recruiter" ? "/recruiter" : "/admin";
+  const dashboardPath = getRoleDashboardPath(user?.role);
 
   return (
     <nav className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b">

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { TABLES, STORAGE } from "@/lib/supabaseTables";
+import CryptoJS from "crypto-js";
 
 /* ============================================================
  * Helpers
@@ -57,6 +58,7 @@ export async function uploadFile(file: File, folder = STORAGE.FOLDER): Promise<s
 export interface Internship {
   id: string;
   recruiterId: string;
+  supervisorId?: string | null;
   title: string;
   description?: string | null;
   location?: string | null;
@@ -483,9 +485,57 @@ const { data, error } = await supabase
 
 /** Adds recruiter comment / updates status on a report. */
 export async function reviewLogbookReport(reportId: string, status: string, comment?: string): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  const reviewedById = user?.user?.id ?? null;
+
+  // Map recruiter actions onto the multi-stage workflow:
+  //  - recruiter "APPROVED" forwards the report to the supervisor.
+  //  - recruiter "NEEDS_REVISION" / "REQUESTED_CHANGES" sends it back to the
+  //    student with a "RECRUITER_CHANGES_REQUESTED" status.
+  let nextStatus = status;
+  if (status === "APPROVED") nextStatus = "PENDING_SUPERVISOR_REVIEW";
+  if (status === "NEEDS_REVISION" || status === "REQUESTED_CHANGES") nextStatus = "RECRUITER_CHANGES_REQUESTED";
+
   const { error } = await supabase
     .from(TABLES.LOGBOOK_REPORT)
-    .update({ status, recruiterComment: comment || null, updatedAt: new Date().toISOString() })
+    .update({
+      status: nextStatus,
+      recruiterComment: comment || null,
+      reviewedById,
+      reviewedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    .eq("id", reportId);
+  throwIfError(error, "Failed to review report");
+}
+
+/** Adds supervisor comment / updates status on a report. */
+export async function reviewLogbookAsSupervisor(
+  reportId: string,
+  status: string,
+  comment?: string
+): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  const reviewedById = user?.user?.id ?? null;
+
+  // Supervisor approvals move to SUPERVISOR_APPROVED; requesting changes sends
+  // the report back to the recruiter queue (never bypasses the recruiter).
+  const nextStatus =
+    status === "APPROVED"
+      ? "SUPERVISOR_APPROVED"
+      : status === "NEEDS_REVISION" || status === "REQUESTED_CHANGES"
+      ? "SUPERVISOR_CHANGES_REQUESTED"
+      : status;
+
+  const { error } = await supabase
+    .from(TABLES.LOGBOOK_REPORT)
+    .update({
+      status: nextStatus,
+      supervisorComment: comment || null,
+      reviewedById,
+      reviewedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
     .eq("id", reportId);
   throwIfError(error, "Failed to review report");
 }
@@ -618,3 +668,310 @@ export async function createMeeting(payload: Omit<Meeting, "id" | "createdat">):
   throwIfError(error, "Failed to schedule meeting");
   return data as Meeting;
 }
+
+/* ============================================================
+ * University Supervisor
+ * ============================================================ */
+
+export interface SupervisorInvitation {
+  id: string;
+  studentId: string;
+  internshipId?: string | null;
+  name: string;
+  email: string;
+  department?: string | null;
+  university?: string | null;
+  phone?: string | null;
+  tokenHash?: string | null;
+  tokenExpiresAt?: string | null;
+  activatedAt?: string | null;
+  activatedById?: string | null;
+  status: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+function sha256Hex(text: string): string {
+  // crypto-js is a project dependency and works in the browser.
+  return CryptoJS.SHA256(text).toString();
+}
+
+/** Generates a cryptographically random, URL-safe raw token (never stored). */
+function generateInvitationToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(36).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Student creates an invitation for their university supervisor. The raw
+ * activation token is returned (to surface in the UI / hand to email later);
+ * only its SHA-256 hash is persisted. Expires after 48h.
+ */
+export async function createSupervisorInvitation(payload: {
+  name: string;
+  email: string;
+  department?: string;
+  university?: string;
+  phone?: string;
+  internshipId?: string;
+}): Promise<{ invitation: SupervisorInvitation; activationToken: string }> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+
+  const rawToken = generateInvitationToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from(TABLES.SUPERVISOR_INVITATION)
+    .insert({
+      id: newId(),
+      studentId: user.user.id,
+      name: payload.name,
+      email: payload.email,
+      department: payload.department || null,
+      university: payload.university || null,
+      phone: payload.phone || null,
+      internshipId: payload.internshipId || null,
+      tokenHash: sha256Hex(rawToken),
+      tokenExpiresAt: expiresAt,
+      status: "SENT",
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    })
+    .select()
+    .single();
+  throwIfError(error, "Failed to create supervisor invitation");
+  return { invitation: data as SupervisorInvitation, activationToken: rawToken };
+}
+
+/** Fetches the current student's supervisor invitations. */
+export async function fetchMySupervisorInvitations(): Promise<SupervisorInvitation[]> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+
+  const { data, error } = await supabase
+    .from(TABLES.SUPERVISOR_INVITATION)
+    .select("*, internship:internshipId(id, title)")
+    .eq("studentId", user.user.id)
+    .order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load supervisor invitations");
+  return (data as SupervisorInvitation[]) || [];
+}
+
+/**
+ * Resolves an invitation by raw token (public page, before the supervisor has
+ * an account). Returns safe fields or { valid:false, reason }.
+ */
+export async function getSupervisorInvitation(
+  token: string
+): Promise<{ valid: boolean; reason?: string; email?: string; name?: string; department?: string | null; university?: string | null }> {
+  const { data, error } = await supabase.rpc("get_supervisor_invitation", {
+    p_raw_token: (token || "").trim(),
+  });
+  if (error) throw error;
+  return (data || { valid: false, reason: "invalid" }) as {
+    valid: boolean;
+    reason?: string;
+    email?: string;
+    name?: string;
+    department?: string | null;
+    university?: string | null;
+  };
+}
+
+/**
+ * Activates a supervisor invitation token. Resolves the invitation email via
+ * RPC, creates the Supabase auth account (email + password), then calls the
+ * SECURITY DEFINER function which validates the hashed token, creates /
+ * reconnects the SUPERVISOR "User" row, and assigns the supervisor to the
+ * internship.
+ */
+export async function activateSupervisorInvitation(
+  token: string,
+  name: string,
+  password: string
+): Promise<{ email: string; supervisorId: string; invitationId: string }> {
+  const tokenTrim = (token || "").trim();
+  if (!tokenTrim) throw new Error("Missing invitation token.");
+
+  const invite = await getSupervisorInvitation(tokenTrim);
+  if (!invite.valid || !invite.email) {
+    throw new Error("This invitation link is invalid, expired, or already used.");
+  }
+
+  const signUp = await supabase.auth.signUp({
+    email: invite.email.trim(),
+    password,
+    options: { data: { name, role: "SUPERVISOR" } },
+  });
+  if (signUp.error) throw signUp.error;
+  const userId = signUp.data.user?.id;
+  if (!userId) throw new Error("Could not create the supervisor account.");
+
+  const { data, error } = await supabase.rpc("activate_supervisor_invitation", {
+    p_raw_token: tokenTrim,
+    p_user_id: userId,
+    p_user_email: invite.email.trim(),
+    p_user_name: name,
+  });
+  if (error) throw error;
+
+  const result = data as { success?: boolean; message?: string; supervisorId?: string; email?: string };
+  if (!result?.success) {
+    throw new Error(result?.message || "Could not activate the invitation.");
+  }
+  return {
+    email: result.email || invite.email,
+    supervisorId: result.supervisorId || userId,
+    invitationId: tokenTrim,
+  };
+}
+
+/** Fetches internships assigned to the current supervisor. */
+export async function fetchSupervisorInternships(): Promise<Internship[]> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+
+  const { data, error } = await supabase
+    .from(TABLES.INTERNSHIP)
+    .select("*, recruiter:recruiterId(name, company)")
+    .eq("supervisorId", user.user.id)
+    .order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load assigned internships");
+  return (data as Internship[]) || [];
+}
+
+/** Fetches reports for the current supervisor's assigned internships. */
+export async function fetchSupervisorLogbooks(): Promise<LogbookReport[]> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+
+  const { data: internships } = await supabase
+    .from(TABLES.INTERNSHIP)
+    .select("id")
+    .eq("supervisorId", user.user.id);
+  const ids = (internships || []).map((i) => i.id);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from(TABLES.LOGBOOK_REPORT)
+    .select("*, internship:internshipId(id, title), student:studentId(id, name, email, university, major)")
+    .in("internshipId", ids)
+    .order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load logbook reports");
+  return (data as LogbookReport[]) || [];
+}
+
+/** Fetches all SUPERVISOR users (admin). */
+export async function fetchSupervisors() {
+  return fetchUsers("SUPERVISOR");
+}
+
+/** Fetches internships assigned to a specific supervisor (admin). */
+export async function fetchInternshipsBySupervisor(supervisorId: string): Promise<Internship[]> {
+  const { data, error } = await supabase
+    .from(TABLES.INTERNSHIP)
+    .select("*, recruiter:recruiterId(name, company)")
+    .eq("supervisorId", supervisorId)
+    .order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load supervisor internships");
+  return (data as Internship[]) || [];
+}
+
+/** Counts distinct students under a supervisor's internships (admin). */
+export async function countStudentsBySupervisor(supervisorId: string): Promise<number> {
+  const { data: internships } = await supabase
+    .from(TABLES.INTERNSHIP)
+    .select("id")
+    .eq("supervisorId", supervisorId);
+  const ids = (internships || []).map((i) => i.id);
+  if (ids.length === 0) return 0;
+  const { data, error } = await supabase
+    .from(TABLES.APPLICATION)
+    .select("studentId")
+    .in("internshipId", ids);
+  if (error) return 0;
+  return new Set((data || []).map((r) => r.studentId)).size;
+}
+
+/** Fetches the administration view of supervisors with assignments. */
+export async function fetchSupervisorAssignments(): Promise<
+  Array<{
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    university?: string | null;
+    suspended?: boolean;
+    createdAt?: string | null;
+    internships: Internship[];
+    studentCount: number;
+  }>
+> {
+  const supervisors = await fetchSupervisors();
+  return Promise.all(
+    (supervisors as Array<Record<string, unknown>>).map(async (s) => ({
+      id: String(s.id || ""),
+      name: (s.name as string | undefined) ?? null,
+      email: (s.email as string | undefined) ?? null,
+      university: (s.university as string | undefined) ?? null,
+      suspended: !!s.suspended,
+      createdAt: (s.createdAt as string | undefined) ?? null,
+      internships: await fetchInternshipsBySupervisor(String(s.id)),
+      studentCount: await countStudentsBySupervisor(String(s.id)),
+    }))
+  );
+}
+
+/** Sends/regenerates a fresh invitation for a supervisor (admin). */
+export async function resendSupervisorInvitation(payload: {
+  name: string;
+  email: string;
+  department?: string;
+  university?: string;
+}): Promise<{ invitation: SupervisorInvitation; activationToken: string }> {
+  return createSupervisorInvitation(payload);
+}
+
+/** Fetches the distinct students linked to the current supervisor's internships. */
+export async function fetchSupervisorStudents(): Promise<
+  Array<{
+    student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null };
+    internships: Array<{ id: string; title: string }>;
+  }>
+> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+
+  const internships = await fetchSupervisorInternships();
+  if (internships.length === 0) return [];
+
+  const ids = internships.map((i) => i.id);
+  const { data, error } = await supabase
+    .from(TABLES.APPLICATION)
+    .select("studentId, internshipId, student:studentId(id, name, email, university, major)")
+    .in("internshipId", ids);
+  if (error) throw new Error("Failed to load your students.");
+
+  const byStudent = new Map<string, { student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null }; internships: Array<{ id: string; title: string }> }>();
+  const rows = (data as unknown as Array<{
+    studentId: string;
+    internshipId: string;
+    student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null };
+  }>) || [];
+  for (const row of rows) {
+    const studentRow = row.student;
+    if (!studentRow?.id) continue;
+    const entry = byStudent.get(studentRow.id) || { student: studentRow, internships: [] };
+    const internship = internships.find((i) => i.id === row.internshipId);
+    if (internship && !entry.internships.some((x) => x.id === internship.id)) {
+      entry.internships.push({ id: internship.id, title: internship.title });
+    }
+    byStudent.set(studentRow.id, entry);
+  }
+  return Array.from(byStudent.values());
+}
+

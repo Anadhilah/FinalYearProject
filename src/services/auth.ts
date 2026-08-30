@@ -6,6 +6,7 @@
  * manual REST backend. Auth/session is managed entirely by `supabase.auth`.
  */
 import { supabase } from "@/lib/supabaseClient";
+import { SITE_URL } from "@/lib/siteUrl";
 import {
   fetchInternships,
   fetchInternshipById,
@@ -18,12 +19,19 @@ import {
   fetchLogbookReports,
   createLogbookReport,
   reviewLogbookReport,
+  reviewLogbookAsSupervisor,
   generateShareToken,
   fetchSharedReport,
   fetchAdminStats,
   fetchRecentActivity,
   fetchUsers,
   updateUser,
+  createSupervisorInvitation,
+  fetchMySupervisorInvitations,
+  activateSupervisorInvitation,
+  fetchSupervisorInternships,
+  fetchSupervisorLogbooks,
+  fetchSupervisors,
   fetchMeetings,
   createMeeting,
   uploadFile,
@@ -117,6 +125,16 @@ export const apiAuthenticationServiceGet = async (url: string): Promise<ApiResul
       return wrap(await fetchUsers());
     case url === "/users?role=RECRUITER":
       return wrap(await fetchUsers("RECRUITER"));
+    case url === "/supervisors":
+      return wrap(await fetchSupervisors());
+    case url === "/supervisor/invitations":
+      return wrap(await fetchMySupervisorInvitations());
+    case url === "/supervisor/internships":
+      return wrap(await fetchSupervisorInternships());
+    case url === "/supervisor/logbooks":
+      return wrap(await fetchSupervisorLogbooks());
+    case url === "/logbooks/supervisor":
+      return wrap(await fetchSupervisorLogbooks());
     case url === "/meetings":
       return wrap(await fetchMeetings());
     default:
@@ -148,6 +166,31 @@ export const apiAuthenticationServicePost = async (url: string, data?: unknown):
     }
     case url === "/logbooks":
       return wrap(await createLogbookReport((data as Record<string, unknown>) || {}));
+    case url === "/supervisor/invitations": {
+      const payload = (data || {}) as {
+        name: string;
+        email: string;
+        department?: string;
+        university?: string;
+        phone?: string;
+        internshipId?: string;
+      };
+      return wrap(await createSupervisorInvitation(payload));
+    }
+    case url === "/supervisor/invitations/activate": {
+      const { token, name, password } = (data || {}) as {
+        token: string;
+        name: string;
+        password: string;
+      };
+      return wrap(await activateSupervisorInvitation(token, name, password));
+    }
+    case /^\/logbooks\/[^/]+\/supervisor-comment$/.test(url): {
+      const reportId = url.split("/")[2];
+      const { status, comment } = (data || {}) as { status: string; comment?: string };
+      await reviewLogbookAsSupervisor(reportId, status, comment);
+      return wrap({ success: true });
+    }
     case /^\/logbooks\/[^/]+\/comment$/.test(url): {
       const reportId = url.split("/")[2];
       const { status, recruiterComment } = (data || {}) as { status: string; recruiterComment?: string };
@@ -157,7 +200,7 @@ export const apiAuthenticationServicePost = async (url: string, data?: unknown):
     case /^\/logbooks\/[^/]+\/share$/.test(url): {
       const reportId = url.split("/")[2];
       const token = await generateShareToken(reportId);
-      const shareLink = `${window.location.origin}/shared/${token}`;
+      const shareLink = `${SITE_URL}/shared/${token}`;
       return wrap({ shareLink });
     }
 case url === "/meetings":

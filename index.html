@@ -28,65 +28,70 @@
 
   <body>
     <div id="root"></div>
-    <!-- Splash Screen -->
+    <!-- Splash Screen (mobile app / standalone PWA only) -->
     <div id="splash-screen" class="splash-screen">
       <div class="splash-content">
         <img src="/logo.png" alt="InternshipConnect" class="splash-logo" />
-        <p class="splash-tagline">Connecting Opportunities...</p>
+        <div class="splash-overlay"></div>
         <div class="spinner"></div>
       </div>
     </div>
     <style>
+      /* Hidden by default. Revealed only in standalone (installed PWA) mode via JS. */
       #splash-screen {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        display: flex;
+        background: #1e40af;
+        display: none;
         align-items: center;
         justify-content: center;
         z-index: 9999;
         opacity: 1;
         transition: opacity 0.5s ease-out 0.5s;
       }
+      #splash-screen.visible {
+        display: flex;
+      }
       #splash-screen.hidden {
         opacity: 0;
         pointer-events: none;
       }
+      /* Full-screen logo — covers the entire screen */
       .splash-content {
-        text-align: center;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         display: flex;
-        flex-direction: column;
         align-items: center;
-        gap: 2rem;
+        justify-content: center;
       }
       .splash-logo {
-        width: 120px;
-        height: 120px;
-        object-fit: contain;
-        animation: float 3s ease-in-out infinite;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
-      .splash-tagline {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-        font-size: 1.1rem;
-        color: #1e40af;
-        margin: 0;
-        font-weight: 500;
-        letter-spacing: 0.05em;
+      /* Overlay gradient so the spinner and logo stay legible */
+      .splash-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(30, 64, 175, 0.25) 0%, rgba(30, 64, 175, 0) 50%, rgba(30, 64, 175, 0.45) 100%);
       }
       .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid #1e40af;
-        border-top-color: transparent;
+        position: relative;
+        z-index: 2;
+        width: 48px;
+        height: 48px;
+        border: 5px solid rgba(255, 255, 255, 0.9);
+        border-top-color: #1e40af;
         border-radius: 50%;
         animation: spin 1s linear infinite;
-      }
-      @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-20px); }
+        box-shadow: 0 0 14px rgba(255, 255, 255, 0.5);
       }
       @keyframes spin {
         to { transform: rotate(360deg); }
@@ -94,22 +99,38 @@
     </style>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Hide splash screen when app loads
-      window.addEventListener('load', () => {
-        const splashScreen = document.getElementById('splash-screen');
-        if (splashScreen) {
-          setTimeout(() => {
-            splashScreen.classList.add('hidden');
-          }, 1000);
+      // Only show the splash screen in the installed PWA / mobile app
+      // (display-mode: standalone). Regular web browsers never see it.
+      (function () {
+        var standalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          window.matchMedia('(display-mode: fullscreen)').matches ||
+          window.navigator.standalone === true;
+
+        var splash = document.getElementById('splash-screen');
+
+        function hideSplash() {
+          if (!splash) return;
+          splash.classList.add('hidden');
+          setTimeout(function () {
+            splash.classList.remove('visible');
+          }, 600);
         }
-      });
-      // Also hide after 3 seconds as a fallback
-      setTimeout(() => {
-        const splashScreen = document.getElementById('splash-screen');
-        if (splashScreen && !splashScreen.classList.contains('hidden')) {
-          splashScreen.classList.add('hidden');
+
+        if (!standalone) {
+          // Web: never show the splash at all.
+          return;
         }
-      }, 3000);
+
+        splash.classList.add('visible');
+
+        window.addEventListener('load', function () {
+          setTimeout(hideSplash, 1200);
+        });
+
+        // Fallback so the splash never blocks the app.
+        setTimeout(hideSplash, 4000);
+      })();
     </script>
   </body>
 </html>

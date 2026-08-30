@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { supabase } from "@/lib/supabaseClient";
+import { SITE_URL } from "@/lib/siteUrl";
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 
-export type UserRole = "student" | "recruiter" | "admin";
+export type UserRole = "student" | "recruiter" | "admin" | "supervisor";
 
 export interface User {
   id: string;
@@ -20,6 +21,8 @@ export interface User {
   proofDocUrl?: string | null;
   hrName?: string | null;
   hrEmail?: string | null;
+  university?: string | null;
+  major?: string | null;
 }
 
 interface AuthContextType {
@@ -57,6 +60,8 @@ interface RawUser {
   proofDocUrl?: string | null;
   hrName?: string | null;
   hrEmail?: string | null;
+  university?: string | null;
+  major?: string | null;
 }
 
 const mapRawUser = (raw: RawUser | null | undefined): User => ({
@@ -74,6 +79,8 @@ const mapRawUser = (raw: RawUser | null | undefined): User => ({
   proofDocUrl: raw?.proofDocUrl,
   hrName: raw?.hrName,
   hrEmail: raw?.hrEmail,
+  university: raw?.university,
+  major: raw?.major,
 });
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -336,7 +343,7 @@ const initialize = async () => {
         password,
         options: {
           data: { name, role: role.toUpperCase() },
-          emailRedirectTo: `${window.location.origin}/login`,
+          emailRedirectTo: `${SITE_URL}/login`,
         },
       });
       if (error) {

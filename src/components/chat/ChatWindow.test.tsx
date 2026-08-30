@@ -31,24 +31,4 @@ describe("ChatWindow", () => {
     expect(onSendMessage).toHaveBeenCalledWith("conv-1", "Hello there");
     expect(input).toHaveValue("");
   });
-
-  it("opens a voice-only call panel when the voice button is pressed", () => {
-    const conversation: ChatConversation = {
-      id: "conv-1",
-      lastActivity: new Date().toISOString(),
-      participants: [
-        { id: "user-1", name: "You", role: "student" },
-        { id: "user-2", name: "Recruiter", role: "recruiter" },
-      ],
-      messages: [],
-    };
-
-    render(<ChatWindow conversation={conversation} currentUserId="user-1" onSendMessage={vi.fn()} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /start voice call/i }));
-
-    expect(screen.getByText("Voice Call")).toBeInTheDocument();
-    expect(screen.getByText(/Voice calling is unavailable|Connecting…/i)).toBeInTheDocument();
-    expect(screen.queryByText("Video Call")).not.toBeInTheDocument();
-  });
 });

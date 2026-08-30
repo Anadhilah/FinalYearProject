@@ -11,6 +11,8 @@ export function getRoleDashboardPath(role: string | UserRole | null | undefined)
       return "/student";
     case "recruiter":
       return "/recruiter";
+    case "supervisor":
+      return "/supervisor";
     case "admin":
       return "/admin";
     default:

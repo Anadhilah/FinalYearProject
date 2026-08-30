@@ -17,6 +17,7 @@ import {
   fetchLogbookReports,
   createLogbookReport,
   reviewLogbookReport,
+  reviewLogbookAsSupervisor,
   generateShareToken,
   fetchSharedReport,
   fetchUsers,
@@ -24,8 +25,15 @@ fetchMeetings,
   createMeeting,
   uploadFile,
   getSignedFileUrl,
+  createSupervisorInvitation,
+  fetchMySupervisorInvitations,
+  activateSupervisorInvitation,
+  fetchSupervisorInternships,
+  fetchSupervisorLogbooks,
+  fetchSupervisors,
   type Meeting,
 } from "@/services/supabase-api";
+import { SITE_URL } from "@/lib/siteUrl";
 
 interface ApiResponse<T> {
   data: T;
@@ -58,6 +66,14 @@ case /^\/logbooks\/share\/[^/]+$/.test(url):
     }
     case url === "/users":
       return wrap(await fetchUsers());
+    case url === "/supervisors":
+      return wrap(await fetchSupervisors());
+    case url === "/supervisor/invitations":
+      return wrap(await fetchMySupervisorInvitations());
+    case url === "/supervisor/internships":
+      return wrap(await fetchSupervisorInternships());
+    case url === "/supervisor/logbooks":
+      return wrap(await fetchSupervisorLogbooks());
     case url === "/meetings":
       return wrap(await fetchMeetings());
     default:
@@ -79,16 +95,41 @@ async function routePost(url: string, data?: unknown): Promise<ApiResponse<unkno
     }
     case url === "/logbooks":
       return wrap(await createLogbookReport((data as Record<string, unknown>) || {}));
+    case url === "/supervisor/invitations": {
+      const payload = (data || {}) as {
+        name: string;
+        email: string;
+        department?: string;
+        university?: string;
+        phone?: string;
+        internshipId?: string;
+      };
+      return wrap(await createSupervisorInvitation(payload));
+    }
+    case url === "/supervisor/invitations/activate": {
+      const { token, name, password } = (data || {}) as {
+        token: string;
+        name: string;
+        password: string;
+      };
+      return wrap(await activateSupervisorInvitation(token, name, password));
+    }
     case /^\/logbooks\/[^/]+\/comment$/.test(url): {
       const reportId = url.split("/")[2];
       const { status, recruiterComment } = (data || {}) as { status: string; recruiterComment?: string };
       await reviewLogbookReport(reportId, status, recruiterComment);
       return wrap({ success: true });
     }
+    case /^\/logbooks\/[^/]+\/supervisor-comment$/.test(url): {
+      const reportId = url.split("/")[2];
+      const { status, comment } = (data || {}) as { status: string; comment?: string };
+      await reviewLogbookAsSupervisor(reportId, status, comment);
+      return wrap({ success: true });
+    }
     case /^\/logbooks\/[^/]+\/share$/.test(url): {
       const reportId = url.split("/")[2];
       const token = await generateShareToken(reportId);
-      return wrap({ shareLink: `${window.location.origin}/shared/${token}` });
+      return wrap({ shareLink: `${SITE_URL}/shared/${token}` });
     }
     case /^\/upload\/.+$/.test(url): {
       const { file } = (data || {}) as { file: File };
