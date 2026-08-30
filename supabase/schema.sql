@@ -157,6 +157,20 @@ create table if not exists "WeeklyLogbookReport" (
 );
 alter table "WeeklyLogbookReport" enable row level security;
 
+-- ---------- Meeting ----------
+create table if not exists "Meeting" (
+  id text primary key,
+  title text not null,
+  studentId text not null references "User" (id) on delete cascade,
+  recruiterId text not null references "User" (id) on delete cascade,
+  scheduledFor timestamptz not null,
+  type text not null default 'video',
+  status text not null default 'upcoming',
+  createdAt timestamptz not null default now(),
+  updatedAt timestamptz not null default now()
+);
+alter table "Meeting" enable row level security;
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -301,6 +315,30 @@ create policy "Recruiters update reports for own internships" on "WeeklyLogbookR
     )
   );
 
+-- ---------- Meeting ----------
+drop policy if exists "Participants read meetings" on "Meeting";
+create policy "Participants read meetings" on "Meeting"
+  for select using (
+    public.get_my_role() = 'ADMIN'
+    or "studentId" = auth.uid()::text
+    or "recruiterId" = auth.uid()::text
+  );
+
+drop policy if exists "Recruiters create meetings" on "Meeting";
+create policy "Recruiters create meetings" on "Meeting"
+  for insert with check (
+    public.get_my_role() = 'ADMIN'
+    or ("recruiterId" = auth.uid()::text and public.get_my_role() = 'RECRUITER')
+  );
+
+drop policy if exists "Participants update meetings" on "Meeting";
+create policy "Participants update meetings" on "Meeting"
+  for update using (
+    public.get_my_role() = 'ADMIN'
+    or "studentId" = auth.uid()::text
+    or "recruiterId" = auth.uid()::text
+  );
+
 -- ============================================================
 -- FIX NOT-NULL TIMESTAMP DEFAULTS
 -- The Prisma-created tables have createdAt/updatedAt as NOT NULL
@@ -322,6 +360,8 @@ alter table "Message" alter column "createdAt" set default now();
 alter table "Message" alter column "updatedAt" set default now();
 alter table "WeeklyLogbookReport" alter column "createdAt" set default now();
 alter table "WeeklyLogbookReport" alter column "updatedAt" set default now();
+alter table "Meeting" alter column "createdAt" set default now();
+alter table "Meeting" alter column "updatedAt" set default now();
 
 -- ============================================================
 -- AUTO-CREATE USER PROFILE ON SIGNUP (CRITICAL)
@@ -379,6 +419,7 @@ grant all on table "Conversation" to anon, authenticated;
 grant all on table "ConversationParticipant" to anon, authenticated;
 grant all on table "Message" to anon, authenticated;
 grant all on table "WeeklyLogbookReport" to anon, authenticated;
+grant all on table "Meeting" to anon, authenticated;
 
 -- Allow the RLS helper function to be executed by app queries.
 grant execute on function public.get_my_role() to anon, authenticated;

@@ -577,12 +577,14 @@ export async function updateUser(id: string, payload: Record<string, unknown>): 
 export interface Meeting {
   id: string;
   title: string;
-  studentId?: string | null;
-  recruiterId?: string | null;
-  scheduledFor: string;
+  participantname: string;
+  participantemail?: string | null;
+  createdbyemail?: string | null;
+  scheduledfor: string;
   type: string;
   status: string;
-  createdAt?: string | null;
+  createdat?: string | null;
+  updatedat?: string | null;
 }
 
 export async function fetchMeetings(): Promise<Meeting[]> {
@@ -592,16 +594,25 @@ export async function fetchMeetings(): Promise<Meeting[]> {
   const { data, error } = await supabase
     .from(TABLES.MEETING)
     .select("*")
-    .or(`studentId.eq.${user.user.id},recruiterId.eq.${user.user.id}`)
-    .order("scheduledFor", { ascending: true });
+    .order("scheduledfor", { ascending: true });
   throwIfError(error, "Failed to load meetings");
   return (data as Meeting[]) || [];
 }
 
-export async function createMeeting(payload: Omit<Meeting, "id" | "createdAt">): Promise<Meeting> {
+export async function createMeeting(payload: Omit<Meeting, "id" | "createdat">): Promise<Meeting> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in to schedule a meeting.");
+
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from(TABLES.MEETING)
-    .insert({ id: newId(), ...payload })
+    .insert({
+      id: newId(),
+      ...payload,
+      status: payload.status || "upcoming",
+      createdat: now,
+      updatedat: now,
+    })
     .select()
     .single();
   throwIfError(error, "Failed to schedule meeting");

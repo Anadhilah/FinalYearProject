@@ -1,82 +1,29 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMessages } from "@/contexts/MessagesContext";
 import type { ChatConversation } from "@/types/chat";
-import { fetchConversations, sendConversationMessage, buildOptimisticMessage } from "@/services/chat";
-import { useChatRealtime } from "@/hooks/useChatRealtime";
 import ConversationList from "./ConversationList";
 import ChatWindow from "./ChatWindow";
 
 export default function FloatingChat() {
   const { user } = useAuth();
+  const { conversations, unreadCount, selectConversation, resetSelection, sendMessage } = useMessages();
   const [open, setOpen] = useState(false);
-  const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [selectedConv, setSelectedConv] = useState<ChatConversation | null>(null);
-
-useEffect(() => {
-    if (!user || user.role === "admin") return;
-    fetchConversations()
-      .then(setConversations)
-      .catch((err) => console.error("Failed to load conversations:", err));
-  }, [user]);
-
-  useChatRealtime(user?.id, setConversations, setSelectedConv);
+  const [internalSelected, setInternalSelected] = useState<ChatConversation | null>(null);
 
   if (!user || user.role === "admin") return null;
 
-const handleSendMessage = async (conversationId: string, text: string): Promise<void> => {
-    const optimistic = buildOptimisticMessage(user.id, text);
-    const applyOptimistic = (prev: ChatConversation[]) =>
-      prev.map((c) =>
-        c.id === conversationId
-          ? { ...c, messages: [...c.messages, optimistic], lastActivity: optimistic.timestamp }
-          : c
-      );
-    setConversations(applyOptimistic);
-    setSelectedConv((prev) =>
-      prev && prev.id === conversationId
-        ? { ...prev, messages: [...prev.messages, optimistic], lastActivity: optimistic.timestamp }
-        : prev
-    );
-
-    try {
-      const message = await sendConversationMessage(conversationId, text);
-      const swap = (prev: ChatConversation[]) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                messages: c.messages.map((m) => (m.id === optimistic.id ? message : m)),
-                lastActivity: message.timestamp,
-              }
-            : c
-        );
-      setConversations(swap);
-      setSelectedConv((prev) =>
-        prev && prev.id === conversationId
-          ? { ...prev, messages: prev.messages.map((m) => (m.id === optimistic.id ? message : m)), lastActivity: message.timestamp }
-          : prev
-      );
-    } catch (err) {
-      const remove = (prev: ChatConversation[]) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? { ...c, messages: c.messages.filter((m) => m.id !== optimistic.id) }
-            : c
-        );
-      setConversations(remove);
-      setSelectedConv((prev) =>
-        prev && prev.id === conversationId
-          ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) }
-          : prev
-      );
-      throw err;
-    }
+  const handleSelect = (conv: ChatConversation) => {
+    setInternalSelected(conv);
+    selectConversation(conv.id);
   };
 
-  const unreadCount = conversations.length;
+  const handleBack = () => {
+    setInternalSelected(null);
+  };
 
   return (
     <>
@@ -87,6 +34,7 @@ const handleSendMessage = async (conversationId: string, text: string): Promise<
           "gradient-hero hover:opacity-90 transition-all"
         )}
         size="icon"
+        aria-label="Chat"
       >
         {open ? <X className="h-5 w-5 text-primary-foreground" /> : (
           <div className="relative">
@@ -102,19 +50,19 @@ const handleSendMessage = async (conversationId: string, text: string): Promise<
 
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-[360px] h-[500px] rounded-2xl border bg-card shadow-elevated overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200">
-          {selectedConv ? (
+          {internalSelected ? (
             <ChatWindow
-              conversation={selectedConv}
+              conversation={internalSelected}
               currentUserId={user.id}
-              onBack={() => setSelectedConv(null)}
-              onSendMessage={handleSendMessage}
+              onBack={handleBack}
+              onSendMessage={sendMessage}
               compact
             />
           ) : (
             <ConversationList
               conversations={conversations}
               currentUserId={user.id}
-              onSelect={setSelectedConv}
+              onSelect={handleSelect}
               compact
             />
           )}

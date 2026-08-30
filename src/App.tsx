@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { MessagesProvider } from "@/contexts/MessagesContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAppUpdate } from "@/hooks/useAppUpdate";
 
@@ -57,8 +58,9 @@ function App() {
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+          <AuthProvider>
+            <MessagesProvider>
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -104,6 +106,7 @@ function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
           <FloatingChat />
+          </MessagesProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

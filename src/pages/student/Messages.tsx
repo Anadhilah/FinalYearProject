@@ -1,103 +1,37 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMessages } from "@/contexts/MessagesContext";
 import type { ChatConversation } from "@/types/chat";
-import { fetchConversations, sendConversationMessage, buildOptimisticMessage } from "@/services/chat";
-import { useChatRealtime } from "@/hooks/useChatRealtime";
 import ConversationList from "@/components/chat/ConversationList";
 import ChatWindow from "@/components/chat/ChatWindow";
 import { MessageCircle } from "lucide-react";
 
 export default function StudentMessages() {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const {
+    conversations,
+    loading,
+    selectConversation,
+    resetSelection,
+    sendMessage,
+  } = useMessages();
   const [selected, setSelected] = useState<ChatConversation | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadConversations = async () => {
-      if (!user) return;
-      setLoading(true);
-      setError(null);
-
-      try {
-        const data = await fetchConversations();
-        setConversations(data);
-        setSelected((prev) => {
-          if (!prev) return null;
-          return data.find((conversation) => conversation.id === prev.id) ?? null;
-        });
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to load conversations");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-loadConversations();
-  }, [user]);
-
-  useChatRealtime(user?.id, setConversations, setSelected);
-
-const handleSendMessage = async (conversationId: string, text: string): Promise<void> => {
-    if (!user) return;
-    // Optimistic: show the sender's message instantly.
-    const optimistic = buildOptimisticMessage(user.id, text);
-    const applyOptimistic = (prev: ChatConversation[]) =>
-      prev.map((conversation) =>
-        conversation.id === conversationId
-          ? {
-              ...conversation,
-              messages: [...conversation.messages, optimistic],
-              lastActivity: optimistic.timestamp,
-            }
-          : conversation
-      );
-    setConversations(applyOptimistic);
-    setSelected((prev) =>
-      prev && prev.id === conversationId
-        ? { ...prev, messages: [...prev.messages, optimistic], lastActivity: optimistic.timestamp }
-        : prev
-    );
-
-    try {
-      const message = await sendConversationMessage(conversationId, text);
-      // Swap the temp message for the real one.
-      const swap = (prev: ChatConversation[]) =>
-        prev.map((conversation) =>
-          conversation.id === conversationId
-            ? {
-                ...conversation,
-                messages: conversation.messages.map((m) =>
-                  m.id === optimistic.id ? message : m
-                ),
-                lastActivity: message.timestamp,
-              }
-            : conversation
-        );
-      setConversations(swap);
-      setSelected((prev) =>
-        prev && prev.id === conversationId
-          ? { ...prev, messages: prev.messages.map((m) => (m.id === optimistic.id ? message : m)), lastActivity: message.timestamp }
-          : prev
-      );
-    } catch (err) {
-      // On failure, remove the optimistic message so we don't show a ghost.
-      const remove = (prev: ChatConversation[]) =>
-        prev.map((conversation) =>
-          conversation.id === conversationId
-            ? { ...conversation, messages: conversation.messages.filter((m) => m.id !== optimistic.id) }
-            : conversation
-        );
-      setConversations(remove);
-      setSelected((prev) =>
-        prev && prev.id === conversationId
-          ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) }
-          : prev
-      );
-      throw err;
-    }
+  const handleSelect = (conv: ChatConversation) => {
+    setSelected(conv);
+    selectConversation(conv.id);
   };
+
+  const handleBack = () => {
+    setSelected(null);
+    resetSelection();
+  };
+
+  useEffect(() => {
+    return () => resetSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="animate-fade-in">
@@ -130,7 +64,7 @@ const handleSendMessage = async (conversationId: string, text: string): Promise<
                 conversations={conversations}
                 currentUserId={user?.id || ""}
                 selectedId={selected?.id}
-                onSelect={setSelected}
+                onSelect={handleSelect}
               />
             </div>
             <div className={`flex-1 ${!selected ? "hidden md:flex" : "flex"} flex-col`}>
@@ -138,8 +72,8 @@ const handleSendMessage = async (conversationId: string, text: string): Promise<
                 <ChatWindow
                   conversation={selected}
                   currentUserId={user?.id || ""}
-                  onBack={() => setSelected(null)}
-                  onSendMessage={handleSendMessage}
+                  onBack={handleBack}
+                  onSendMessage={sendMessage}
                 />
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-8">

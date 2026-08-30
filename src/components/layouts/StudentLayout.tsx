@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useMessages } from "@/contexts/MessagesContext";
 
 const navItems = [
   { label: "Overview", path: "/student", icon: LayoutDashboard },
@@ -21,6 +22,7 @@ export default function StudentLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { unreadCount } = useMessages();
 
   return (
     <div className="min-h-screen flex bg-muted/30">
@@ -50,7 +52,12 @@ export default function StudentLayout() {
                 )}
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.path === "/student/messages" && unreadCount > 0 && (
+                  <span className="h-5 min-w-5 px-1.5 rounded-full bg-accent text-[10px] font-bold text-accent-foreground flex items-center justify-center">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

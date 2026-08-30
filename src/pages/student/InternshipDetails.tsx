@@ -69,11 +69,25 @@ export default function InternshipDetails() {
   const handleApply = async () => {
     if (!internship || !cvFile) return;
 
+    // Validate file size (max 10MB)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (cvFile.size > MAX_FILE_SIZE) {
+      toast({ 
+        title: "File too large", 
+        description: "Your CV must be less than 10MB.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
 
-// The compat layer's /upload/* handler expects `{ file }`, not a FormData.
-      const uploadRes = await apiAuthenticationServicePost("/upload/resume", { file: cvFile });
+      // Use FormData for file upload
+      const formData = new FormData();
+      formData.append("file", cvFile);
+      
+      const uploadRes = await apiAuthenticationServicePost("/upload/resume", formData);
       const resumePath = uploadRes.data.path;
 
       await apiAuthenticationServicePost("/applications-list", {
@@ -85,7 +99,7 @@ export default function InternshipDetails() {
       setSubmitted(true);
       setAlreadyApplied(true);
       toast({ title: "Application submitted", description: "Your application has been sent successfully." });
-} catch (err) {
+    } catch (err) {
       const msg =
         (err as { message?: string })?.message ||
         (err as { details?: string })?.details ||

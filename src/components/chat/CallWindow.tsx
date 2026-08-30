@@ -43,8 +43,11 @@ export default function CallWindow({ callerName, callerInitial, mode, onEnd, com
     };
   }, [state]);
 
+  const [retryKey, setRetryKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const initCall = async () => {
       if (typeof window === "undefined" || typeof navigator === "undefined") {
@@ -52,10 +55,29 @@ export default function CallWindow({ callerName, callerInitial, mode, onEnd, com
         return;
       }
 
+      // Fail fast if the token request (edge function) doesn't respond,
+      // instead of hanging on "Connecting…" forever.
+      const tokenTimeout = new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), 10000);
+      });
+
       try {
-        const response = await getAgoraToken(channelName, agoraUid);
+        const response = await Promise.race([
+          getAgoraToken(channelName, agoraUid),
+          tokenTimeout,
+        ]);
+
+        if (cancelled) return;
+
+        if (!response) {
+          setStatusMessage("Timed out requesting call token. Check that the agora-token edge function is deployed.");
+          console.error("[call] getAgoraToken timed out after 10s");
+          return;
+        }
+
         if (!response.success || !response.token || !response.appId) {
           setStatusMessage(response.message || "Unable to start voice call");
+          console.error("[call] token error:", response);
           return;
         }
 
@@ -99,6 +121,7 @@ export default function CallWindow({ callerName, callerInitial, mode, onEnd, com
 
     return () => {
       cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
       if (audioTrackRef.current) {
         audioTrackRef.current.close();
       }
@@ -106,7 +129,7 @@ export default function CallWindow({ callerName, callerInitial, mode, onEnd, com
         void clientRef.current.leave();
       }
     };
-  }, [agoraUid, channelName, isVideoRequested]);
+  }, [agoraUid, channelName, isVideoRequested, retryKey]);
 
   const handleEnd = () => {
     setState("ended");
@@ -126,6 +149,13 @@ export default function CallWindow({ callerName, callerInitial, mode, onEnd, com
     const nextMuted = !muted;
     audioTrackRef.current.setEnabled(!nextMuted);
     setMuted(nextMuted);
+  };
+
+  const handleRetry = () => {
+    setState("ringing");
+    setStatusMessage("Connecting…");
+    setElapsed(0);
+    setRetryKey((k) => k + 1);
   };
 
   const formatTime = (s: number) => {
@@ -181,6 +211,12 @@ export default function CallWindow({ callerName, callerInitial, mode, onEnd, com
               <PhoneOff className="h-5 w-5" />
             </Button>
           </div>
+        )}
+
+        {state === "ringing" && statusMessage !== "Connecting…" && (
+          <Button variant="secondary" className="mt-2" onClick={handleRetry}>
+            Retry call
+          </Button>
         )}
       </div>
       <div ref={localAudioContainerRef} />

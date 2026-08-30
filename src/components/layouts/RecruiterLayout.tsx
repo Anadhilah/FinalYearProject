@@ -7,6 +7,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import FirstTimeWalkthrough, { isWalkthroughPending } from "@/components/recruiter/FirstTimeWalkthrough";
+import { useMessages } from "@/contexts/MessagesContext";
 
 const navItems = [
   { label: "Overview", path: "/recruiter", icon: LayoutDashboard },
@@ -23,6 +24,7 @@ export default function RecruiterLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { unreadCount } = useMessages();
 
   const isApprovedRecruiter = user?.recruiterStatus === 'approved' || user?.isApproved === true;
   const showWalkthrough = isApprovedRecruiter && isWalkthroughPending();
@@ -50,7 +52,12 @@ export default function RecruiterLayout() {
                   active ? "bg-sidebar-accent text-sidebar-primary-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/50"
                 )}>
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.path === "/recruiter/messages" && unreadCount > 0 && (
+                  <span className="h-5 min-w-5 px-1.5 rounded-full bg-accent text-[10px] font-bold text-accent-foreground flex items-center justify-center">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

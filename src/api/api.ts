@@ -96,7 +96,7 @@ async function routePost(url: string, data?: unknown): Promise<ApiResponse<unkno
       return wrap({ path });
     }
     case url === "/meetings":
-      return wrap(await createMeeting((data as Omit<Meeting, "id" | "createdAt">) || ({} as Omit<Meeting, "id" | "createdAt">)));
+      return wrap(await createMeeting((data as Omit<Meeting, "id" | "createdat">) || ({} as Omit<Meeting, "id" | "createdat">)));
     default:
       throw new Error(`Unhandled POST endpoint: ${url}`);
   }

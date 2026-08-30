@@ -47,7 +47,8 @@ function reconcile(
 export function useChatRealtime(
   currentUserId: string | undefined,
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>,
-  setSelected: React.Dispatch<React.SetStateAction<ChatConversation | null>>
+  setSelected: React.Dispatch<React.SetStateAction<ChatConversation | null>>,
+  onNewMessage?: (conversationId: string, senderName: string) => void
 ) {
   useEffect(() => {
     if (!currentUserId) return;
@@ -58,11 +59,22 @@ export function useChatRealtime(
       // appended locally after sending).
       if (message.senderId === currentUserId) return;
 
-      setConversations((prev) =>
-        prev.map((conv) =>
+      setConversations((prev) => {
+        const updated = prev.map((conv) =>
           conv.id === conversationId ? mergeMessage(conv, message) : conv
-        )
-      );
+        );
+        
+        // Notify about new message
+        if (onNewMessage) {
+          const conversation = updated.find(c => c.id === conversationId);
+          if (conversation) {
+            const sender = conversation.participants.find(p => p.id === message.senderId);
+            onNewMessage(conversationId, sender?.name || "Someone");
+          }
+        }
+        
+        return updated;
+      });
 
       setSelected((prev) => {
         if (!prev || prev.id !== conversationId) return prev;
@@ -87,5 +99,5 @@ export function useChatRealtime(
       unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, [currentUserId, onNewMessage]);
 }
