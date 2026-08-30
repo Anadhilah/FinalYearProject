@@ -1,0 +1,7 @@
+# Netlify redirects file for SPA routing
+
+# Redirect email confirmation callbacks to index.html so React Router can handle them
+/auth/*  /index.html  200
+
+# Catch-all redirect for SPA - handles all routes that don't match static files
+/*  /index.html  200
