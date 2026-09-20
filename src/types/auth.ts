@@ -2,7 +2,7 @@ export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
-  role?: "STUDENT" | "RECRUITER" | "ADMIN";
+  role?: "STUDENT" | "RECRUITER" | "ADMIN" | "COMPANY_SUPERVISOR" | "FACULTY_COORDINATOR" | "DEPARTMENT_COORDINATOR";
   company?: string;
   industry?: string;
   registrationNumber?: string;

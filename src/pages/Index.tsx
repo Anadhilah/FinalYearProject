@@ -93,6 +93,24 @@ const recruiterSteps = [
   },
 ];
 
+const departmentCoordinatorSteps = [
+  {
+    number: "01",
+    title: "Join the Department",
+    description: "Set up your coordinator account and connect to the relevant department or faculty scope.",
+  },
+  {
+    number: "02",
+    title: "Track Students & Placements",
+    description: "Monitor student activity, internship placements, and department-level engagement in one place.",
+  },
+  {
+    number: "03",
+    title: "Review Progress",
+    description: "Approve updates, review reports, and ensure students stay on track throughout their internship journey.",
+  },
+];
+
 const stats = [
   { value: "5,000+", label: "Internships Posted" },
   { value: "12,000+", label: "Students Registered" },
@@ -101,12 +119,16 @@ const stats = [
 ];
 
 function HowItWorks() {
-  const [activeTab, setActiveTab] = useState<"students" | "recruiters">(
-    "students"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "students" | "recruiters" | "department-coordinators"
+  >("students");
 
   const steps =
-    activeTab === "students" ? studentSteps : recruiterSteps;
+    activeTab === "students"
+      ? studentSteps
+      : activeTab === "recruiters"
+        ? recruiterSteps
+        : departmentCoordinatorSteps;
 
   return (
     <section className="py-24 bg-slate-50">
@@ -128,7 +150,7 @@ function HowItWorks() {
 
         {/* Tabs */}
         <div className="flex justify-center mt-10">
-          <div className="bg-white p-1 rounded-full shadow-md">
+          <div className="bg-white p-1 rounded-full shadow-md flex flex-wrap justify-center gap-2">
             <button
               onClick={() => setActiveTab("students")}
               className={`px-6 py-2 rounded-full transition ${
@@ -149,6 +171,17 @@ function HowItWorks() {
               }`}
             >
               Recruiters
+            </button>
+
+            <button
+              onClick={() => setActiveTab("department-coordinators")}
+              className={`px-6 py-2 rounded-full transition ${
+                activeTab === "department-coordinators"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600"
+              }`}
+            >
+              Department Coordinators
             </button>
           </div>
         </div>

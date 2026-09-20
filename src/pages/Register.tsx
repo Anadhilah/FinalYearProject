@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import logo from "@/assets/logo.png";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -15,12 +15,24 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [role, setRole] = useState<"student" | "recruiter">("student");
+  const [role, setRole] = useState<"student" | "recruiter" | "department-coordinator">("student");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [coordinator, setCoordinator] = useState({
+    phoneNumber: "",
+    institutionName: "",
+    facultyName: "",
+    departmentName: "",
+    positionTitle: "",
+    coordinatorResponsibility: "",
+  });
   
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  const updateCoordinator = (field: keyof typeof coordinator, value: string) => {
+    setCoordinator((current) => ({ ...current, [field]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,11 +43,21 @@ export default function Register() {
       return;
     }
 
+    if (role === "department-coordinator" && Object.values(coordinator).some((value) => !value.trim())) {
+      setError("Please complete all Department Coordinator fields.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const newUser = await register(name, email, password, role);
+      const newUser = await register(name, email, password, role, {
+        coordinatorStatus: role === "department-coordinator" ? "PENDING" : undefined,
+        ...coordinator,
+      });
       if (role === "recruiter") {
         navigate("/recruiter/verify-email");
+      } else if (role === "department-coordinator") {
+        navigate("/login");
       } else {
         navigate("/student/onboarding");
       }
@@ -55,43 +77,61 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-md shadow-elevated">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-6">
+      <Card className="w-full max-w-5xl shadow-elevated">
         <CardHeader className="text-center">
           <Link to="/" className="flex items-center justify-center gap-2 mb-2">
            <img
-              src={logo} alt="InternshipConnect"className="h-[150px] w-[150px] rounded-lg object-contain"/>
+              src={logo} alt="InternshipConnect" className="h-20 w-20 rounded-lg object-contain"/>
            </Link>
           <CardTitle className="font-display text-2xl">Create Account</CardTitle>
           <CardDescription>Join InternshipConnect today</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs value={role} onValueChange={(v) => setRole(v as "student" | "recruiter")} className="mb-4">
-            <TabsList className="w-full">
+        <CardContent className="grid gap-6 lg:grid-cols-[220px_1fr]">
+          <div className="space-y-4">
+          <Tabs value={role} onValueChange={(v) => setRole(v as "student" | "recruiter" | "department-coordinator")}>
+            <TabsList className="grid h-auto grid-cols-1 gap-1 w-full">
               <TabsTrigger value="student" className="flex-1">Student</TabsTrigger>
               <TabsTrigger value="recruiter" className="flex-1">Recruiter</TabsTrigger>
+              <TabsTrigger value="department-coordinator" className="flex-1">Department Coordinator</TabsTrigger>
             </TabsList>
           </Tabs>
 
+          <p className="mb-4 text-center text-xs text-muted-foreground">
+            Student and Recruiter accounts can register directly. Department Coordinators are
+            submitted for review before activation.
+          </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label htmlFor="name">Full Name</Label>
               <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="reg-email">Email</Label>
-              <Input 
-                id="reg-email" 
-                type="email" 
-                placeholder="you@example.com" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                required 
-              />
+              <Input id="reg-email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
             </div>
 
-            <div className="space-y-2">
+            {role === "department-coordinator" && (
+              <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                <p className="text-sm font-semibold">Department Coordinator information</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5"><Label htmlFor="coord-phone">Phone Number</Label><Input id="coord-phone" value={coordinator.phoneNumber} onChange={(e) => updateCoordinator("phoneNumber", e.target.value)} required /></div>
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="coord-institution">University</Label><Input id="coord-institution" placeholder="Enter your university" value={coordinator.institutionName} onChange={(e) => updateCoordinator("institutionName", e.target.value)} required /></div>
+                  <div className="space-y-2"><Label htmlFor="coord-faculty">Faculty / School</Label><Input id="coord-faculty" placeholder="Enter faculty or school" value={coordinator.facultyName} onChange={(e) => updateCoordinator("facultyName", e.target.value)} required /></div>
+                  <div className="space-y-2"><Label htmlFor="coord-department">Department</Label><Input id="coord-department" placeholder="Enter department" value={coordinator.departmentName} onChange={(e) => updateCoordinator("departmentName", e.target.value)} required /></div>
+                  <div className="space-y-2"><Label htmlFor="coord-position">Position / Title</Label><Input id="coord-position" value={coordinator.positionTitle} onChange={(e) => updateCoordinator("positionTitle", e.target.value)} required /></div>
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="coord-responsibility">Internship Coordinator Responsibility</Label><Input id="coord-responsibility" value={coordinator.coordinatorResponsibility} onChange={(e) => updateCoordinator("coordinatorResponsibility", e.target.value)} placeholder="Describe your responsibility" required /></div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label htmlFor="reg-password">Password</Label>
               <div className="relative">
                 <Input 
@@ -121,7 +161,7 @@ export default function Register() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="confirm-password">Confirm Password</Label>
               <div className="relative">
                 <Input 
@@ -150,13 +190,16 @@ export default function Register() {
                 </button>
               </div>
             </div>
+            </div>
 
             {error && (
               <p className="text-sm text-destructive text-center">{error}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating Account…" : `Register as ${role === "student" ? "Student" : "Recruiter"}`}
+              {loading
+                ? "Creating Account…"
+                : `Register as ${role === "student" ? "Student" : role === "recruiter" ? "Recruiter" : "Department Coordinator"}`}
             </Button>
           </form>
 

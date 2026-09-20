@@ -1,13 +1,49 @@
-import { Button } from "@/components/ui/button";
+﻿import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload, FileText } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiAuthenticationServiceGet, apiAuthenticationServicePut, apiAuthenticationServicePost } from "@/services/auth";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+import { TABLES } from "@/lib/supabaseTables";
+
+interface InstitutionOption {
+  id: string;
+  name: string;
+}
+
+interface FacultyOption {
+  id: string;
+  name: string;
+  institutionId: string;
+}
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+  institutionId: string;
+  facultyId?: string | null;
+}
+
+interface AffiliationForm {
+  id: string | null;
+  institutionId: string;
+  facultyId: string;
+  departmentId: string;
+  studentNumber: string;
+}
+
+const emptyAffiliation: AffiliationForm = {
+  id: null,
+  institutionId: "",
+  facultyId: "",
+  departmentId: "",
+  studentNumber: "",
+};
 
 export default function StudentProfile() {
   const { user } = useAuth();
@@ -19,13 +55,25 @@ export default function StudentProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
+  const [faculties, setFaculties] = useState<FacultyOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [affiliation, setAffiliation] = useState<AffiliationForm>(emptyAffiliation);
 
   useEffect(() => {
     const loadProfile = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
+        setError(null);
+
         const res = await apiAuthenticationServiceGet("/auth/me");
         const data = res.data ?? res;
+
         setForm({
           name: data.name || "",
           university: data.university || "",
@@ -33,17 +81,82 @@ export default function StudentProfile() {
           bio: data.bio || "",
         });
         setExistingCvUrl(data.cvUrl || null);
+
+        const [institutionsRes, facultiesRes, departmentsRes, affiliationRes] = await Promise.all([
+          supabase.from(TABLES.INSTITUTION).select("id, name").order("name", { ascending: true }),
+          supabase.from(TABLES.FACULTY_SCHOOL).select("id, name, institutionId").order("name", { ascending: true }),
+          supabase.from(TABLES.DEPARTMENT).select("id, name, institutionId, facultyId").order("name", { ascending: true }),
+          supabase
+            .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+            .select("id, institutionId, facultyId, departmentId, studentNumber")
+            .eq("studentId", user.id)
+            .maybeSingle(),
+        ]);
+
+        if (institutionsRes.error) throw institutionsRes.error;
+        if (facultiesRes.error) throw facultiesRes.error;
+        if (departmentsRes.error) throw departmentsRes.error;
+        if (affiliationRes.error && affiliationRes.error.code !== "PGRST116") {
+          throw affiliationRes.error;
+        }
+
+        setInstitutions((institutionsRes.data as InstitutionOption[]) || []);
+        setFaculties((facultiesRes.data as FacultyOption[]) || []);
+        setDepartments((departmentsRes.data as DepartmentOption[]) || []);
+
+        const loadedAffiliation = affiliationRes.data as
+          | {
+              id: string;
+              institutionId?: string | null;
+              facultyId?: string | null;
+              departmentId?: string | null;
+              studentNumber?: string | null;
+            }
+          | null;
+
+        setAffiliation(
+          loadedAffiliation
+            ? {
+                id: loadedAffiliation.id || null,
+                institutionId: loadedAffiliation.institutionId || "",
+                facultyId: loadedAffiliation.facultyId || "",
+                departmentId: loadedAffiliation.departmentId || "",
+                studentNumber: loadedAffiliation.studentNumber || "",
+              }
+            : emptyAffiliation
+        );
       } catch (err) {
+        console.error("Failed to load student profile data:", err);
         setError("Unable to load your profile right now.");
       } finally {
         setLoading(false);
       }
     };
+
     loadProfile();
-  }, []);
+  }, [user?.id]);
+
+  const filteredFaculties = useMemo(
+    () =>
+      affiliation.institutionId
+        ? faculties.filter((faculty) => faculty.institutionId === affiliation.institutionId)
+        : [],
+    [affiliation.institutionId, faculties]
+  );
+
+  const filteredDepartments = useMemo(
+    () =>
+      departments.filter(
+        (department) =>
+          department.institutionId === affiliation.institutionId &&
+          (!affiliation.facultyId || department.facultyId === affiliation.facultyId)
+      ),
+    [affiliation.facultyId, affiliation.institutionId, departments]
+  );
 
   const handleSave = async () => {
     if (!user) return;
+
     try {
       setSaving(true);
 
@@ -63,10 +176,46 @@ export default function StudentProfile() {
         ...(cvPath ? { cvUrl: cvPath } : {}),
       });
 
+      if (affiliation.institutionId) {
+        const affiliationPayload = {
+          id: affiliation.id || crypto.randomUUID(),
+          studentId: user.id,
+          institutionId: affiliation.institutionId,
+          facultyId: affiliation.facultyId || null,
+          departmentId: affiliation.departmentId || null,
+          studentNumber: affiliation.studentNumber.trim() || null,
+          isPrimary: true,
+          startDate: null,
+          endDate: null,
+        };
+
+        const { error: affiliationError } = await supabase
+          .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+          .upsert(affiliationPayload, { onConflict: "id" });
+
+        if (affiliationError) {
+          throw affiliationError;
+        }
+
+        setAffiliation((prev) => ({ ...prev, id: affiliationPayload.id }));
+      } else if (affiliation.id) {
+        const { error: deleteAffiliationError } = await supabase
+          .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+          .delete()
+          .eq("id", affiliation.id);
+
+        if (deleteAffiliationError) {
+          throw deleteAffiliationError;
+        }
+
+        setAffiliation(emptyAffiliation);
+      }
+
       setExistingCvUrl(cvPath);
       setCvFile(null);
       toast({ title: "Profile updated", description: "Your changes have been saved." });
     } catch (err) {
+      console.error("Failed to save student profile:", err);
       toast({ title: "Save failed", description: "Unable to save your profile right now.", variant: "destructive" });
     } finally {
       setSaving(false);
@@ -90,7 +239,7 @@ export default function StudentProfile() {
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div>
         <h2 className="text-2xl font-display font-bold">My Profile</h2>
-        <p className="text-muted-foreground">Update your personal information and CV.</p>
+        <p className="text-muted-foreground">Update your personal information, optional institutional affiliation, and CV.</p>
       </div>
 
       {error && (
@@ -122,6 +271,86 @@ export default function StudentProfile() {
             <Label>Bio</Label>
             <Textarea placeholder="Tell recruiters about yourself…" rows={4} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
           </div>
+
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-medium">Institutional affiliation (optional)</h3>
+              <p className="text-xs text-muted-foreground">Leave this blank if you are not affiliated with an institution.</p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Institution</Label>
+                <select
+                  value={affiliation.institutionId}
+                  onChange={(e) => {
+                    setAffiliation((prev) => ({
+                      ...prev,
+                      institutionId: e.target.value,
+                      facultyId: "",
+                      departmentId: "",
+                    }));
+                  }}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="">Select an institution</option>
+                  {institutions.map((institution) => (
+                    <option key={institution.id} value={institution.id}>
+                      {institution.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Student number</Label>
+                <Input
+                  placeholder="e.g. 202405001"
+                  value={affiliation.studentNumber}
+                  onChange={(e) => setAffiliation((prev) => ({ ...prev, studentNumber: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Faculty / School</Label>
+                <select
+                  value={affiliation.facultyId}
+                  onChange={(e) => {
+                    setAffiliation((prev) => ({ ...prev, facultyId: e.target.value, departmentId: "" }));
+                  }}
+                  disabled={!affiliation.institutionId}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">Select faculty / school</option>
+                  {filteredFaculties.map((faculty) => (
+                    <option key={faculty.id} value={faculty.id}>
+                      {faculty.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <select
+                  value={affiliation.departmentId}
+                  onChange={(e) => setAffiliation((prev) => ({ ...prev, departmentId: e.target.value }))}
+                  disabled={!affiliation.institutionId}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">Select department</option>
+                  {filteredDepartments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Upload CV</Label>
             <label

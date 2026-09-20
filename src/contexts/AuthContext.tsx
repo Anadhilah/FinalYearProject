@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { SITE_URL } from "@/lib/siteUrl";
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 
-export type UserRole = "student" | "recruiter" | "admin" | "supervisor";
+export type UserRole = "student" | "recruiter" | "admin" | "supervisor" | "faculty-coordinator" | "department-coordinator";
 
 export interface User {
   id: string;
@@ -32,12 +32,23 @@ interface AuthContextType {
     name: string,
     email: string,
     password: string,
-    role: "student" | "recruiter",
+    role: "student" | "recruiter" | "department-coordinator",
     extra?: {
       company?: string;
       industry?: string;
       registrationNumber?: string;
       proofDocUrl?: string;
+      coordinatorStatus?: string;
+      phoneNumber?: string;
+      staffId?: string;
+      institutionId?: string;
+      facultyId?: string;
+      departmentId?: string;
+      positionTitle?: string;
+      coordinatorResponsibility?: string;
+      institutionName?: string;
+      facultyName?: string;
+      departmentName?: string;
     }
   ) => Promise<User>;
 logout: () => void;
@@ -68,7 +79,7 @@ const mapRawUser = (raw: RawUser | null | undefined): User => ({
   id: raw?.id ?? "",
   name: raw?.name ?? "User",
   email: raw?.email ?? "",
-  role: (raw?.role ?? "student").toLowerCase() as UserRole,
+  role: (raw?.role ?? "student").toLowerCase().replace(/[_\s]+/g, "-") as UserRole,
   isApproved: raw?.isApproved,
   recruiterStatus: raw?.recruiterStatus?.toLowerCase?.(),
   emailVerified: raw?.emailVerified,
@@ -82,6 +93,32 @@ const mapRawUser = (raw: RawUser | null | undefined): User => ({
   university: raw?.university,
   major: raw?.major,
 });
+
+// Supabase reports any non-JSON server/DB failure during signup as an
+// AuthRetryableFetchError whose message serializes to "{}". Surface something
+// actionable instead of that opaque object.
+const toRegistrationError = (error: unknown): Error => {
+  const status = (error as { status?: unknown } | null)?.status;
+  const rawMessage = (error as { message?: unknown } | null)?.message;
+  const message = typeof rawMessage === "string" && rawMessage !== "{}" ? rawMessage : "";
+
+  if (typeof status === "number" && status >= 500) {
+    return new Error(
+      `The server rejected the registration because of a database error (HTTP ${status}). ` +
+        "This usually means the department coordinator database setup has not been applied. " +
+        "Run supabase/migrations/20240105_department_coordinator_registration.sql in the Supabase " +
+        "SQL editor, then try again."
+    );
+  }
+
+  if (status === 0) {
+    return new Error("Could not reach the authentication server. Check your internet connection and try again.");
+  }
+
+  return error instanceof Error && message
+    ? error
+    : new Error(message || "Registration failed. Please try again.");
+};
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -180,6 +217,14 @@ try {
             p_is_approved: false,
             p_email_verified: authUser?.email_confirmed_at != null,
             p_recruiter_status: null,
+            p_coordinator_status: null,
+            p_phone_number: null,
+            p_staff_id: null,
+            p_institution_id: null,
+            p_faculty_id: null,
+            p_department_id: null,
+            p_position_title: null,
+            p_coordinator_responsibility: null,
             p_company: null,
             p_industry: null,
             p_registration_number: null,
@@ -328,27 +373,45 @@ const initialize = async () => {
     name: string,
     email: string,
     password: string,
-    role: "student" | "recruiter",
+    role: "student" | "recruiter" | "department-coordinator",
     extra?: {
       company?: string;
       industry?: string;
       registrationNumber?: string;
       proofDocUrl?: string;
+      coordinatorStatus?: string;
+      phoneNumber?: string;
+      staffId?: string;
+      institutionId?: string;
+      facultyId?: string;
+      departmentId?: string;
+      positionTitle?: string;
+      coordinatorResponsibility?: string;
+      institutionName?: string;
+      facultyName?: string;
+      departmentName?: string;
     }
   ) => {
     registrationInProgress.current = true;
     try {
+      // Send the canonical enum form (DEPARTMENT_COORDINATOR) so the database
+      // cast to the "Role" enum succeeds regardless of the trigger version.
+      const normalizedRole = role.toUpperCase().replace(/-/g, "_");
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { name, role: role.toUpperCase() },
+          data: {
+            name,
+            role: normalizedRole,
+            ...extra,
+          },
           emailRedirectTo: `${SITE_URL}/login`,
         },
       });
       if (error) {
         console.error("Registration error:", error);
-        throw error;
+        throw toRegistrationError(error);
       }
 
       if (!data.user?.id) {
@@ -359,7 +422,7 @@ const initialize = async () => {
         id: data.user.id,
         email,
         name,
-        role: role.toUpperCase(),
+        role: normalizedRole,
         isApproved: false,
         emailVerified: role === "student" || data.user.email_confirmed_at != null,
         recruiterStatus: role === "recruiter" ? "PENDING" : null,
@@ -378,10 +441,18 @@ const initialize = async () => {
           p_id: data.user.id,
           p_email: email,
           p_name: name,
-          p_role: role.toUpperCase(),
+          p_role: normalizedRole,
           p_is_approved: false,
           p_email_verified: role === "student" || data.user.email_confirmed_at != null,
           p_recruiter_status: role === "recruiter" ? "PENDING" : null,
+          p_coordinator_status: extra?.coordinatorStatus ?? null,
+          p_phone_number: extra?.phoneNumber ?? null,
+          p_staff_id: extra?.staffId ?? null,
+          p_institution_id: extra?.institutionId ?? null,
+          p_faculty_id: extra?.facultyId ?? null,
+          p_department_id: extra?.departmentId ?? null,
+          p_position_title: extra?.positionTitle ?? null,
+          p_coordinator_responsibility: extra?.coordinatorResponsibility ?? null,
           p_company: extra?.company ?? null,
           p_industry: extra?.industry ?? null,
           p_registration_number: extra?.registrationNumber ?? null,

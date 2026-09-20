@@ -166,7 +166,7 @@ const res = await api.post<{ shareLink?: string }>(
   const submitInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invForm.name || !invForm.email) {
-      setInvMessage("Please provide the supervisor name and email.");
+      setInvMessage("Please provide the Company Internship Supervisor name and email.");
       return;
     }
     setInvLoading(true);
@@ -192,13 +192,13 @@ const res = await api.post<{ shareLink?: string }>(
       }
       setInvMessage(
         activationToken
-          ? `Invitation created! Send this link to your supervisor:\n${SITE_URL}/supervisor/activate/${activationToken}`
-          : "Supervisor invitation created. Ask your supervisor to check for the activation email."
+          ? `Invitation created! Send this link to your Company Internship Supervisor:\n${SITE_URL}/supervisor/activate/${activationToken}`
+          : "Company Internship Supervisor invitation created. Ask your supervisor to check for the activation email."
       );
       setInvForm({ name: "", email: "", department: "", university: "", phone: "", internshipId: "" });
       await loadInvitations();
     } catch (err) {
-      setInvMessage("Unable to create the supervisor invitation.");
+      setInvMessage("Unable to create the Company Internship Supervisor invitation.");
     } finally {
       setInvLoading(false);
     }

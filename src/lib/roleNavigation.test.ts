@@ -14,6 +14,23 @@ describe("getRoleDashboardPath", () => {
     expect(getRoleDashboardPath("supervisor")).toBe("/supervisor");
   });
 
+  it("maps company supervisor aliases to /supervisor", () => {
+    expect(getRoleDashboardPath("company-supervisor")).toBe("/supervisor");
+    expect(getRoleDashboardPath("company-internship-supervisor")).toBe("/supervisor");
+  });
+
+  it("maps faculty and department coordinator roles", () => {
+    expect(getRoleDashboardPath("faculty-coordinator")).toBe("/faculty-coordinator");
+    expect(getRoleDashboardPath("department-coordinator")).toBe("/department-coordinator");
+    expect(getRoleDashboardPath("Faculty Coordinator")).toBe("/faculty-coordinator");
+    expect(getRoleDashboardPath("Department Coordinator")).toBe("/department-coordinator");
+  });
+
+  it("maps space-separated supervisor aliases", () => {
+    expect(getRoleDashboardPath("Company Supervisor")).toBe("/supervisor");
+    expect(getRoleDashboardPath("Company Internship Supervisor")).toBe("/supervisor");
+  });
+
   it("maps admin role to /admin", () => {
     expect(getRoleDashboardPath("admin")).toBe("/admin");
   });
@@ -23,6 +40,8 @@ describe("getRoleDashboardPath", () => {
     expect(getRoleDashboardPath("Recruiter")).toBe("/recruiter");
     expect(getRoleDashboardPath("SUPERVISOR")).toBe("/supervisor");
     expect(getRoleDashboardPath("ADMIN")).toBe("/admin");
+    expect(getRoleDashboardPath("FACULTY-COORDINATOR")).toBe("/faculty-coordinator");
+    expect(getRoleDashboardPath("DEPARTMENT-COORDINATOR")).toBe("/department-coordinator");
   });
 
   it("falls back to / for unknown roles", () => {

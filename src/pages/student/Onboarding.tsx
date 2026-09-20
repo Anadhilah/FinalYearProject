@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+import { TABLES } from "@/lib/supabaseTables";
+import { apiAuthenticationServicePost, apiAuthenticationServicePut } from "@/services/auth";
 import {
   User, GraduationCap, Wrench, Upload, CheckCircle,
   ArrowRight, ArrowLeft, Briefcase, X
@@ -40,6 +43,10 @@ interface FormData {
   university: string;
   major: string;
   graduationYear: string;
+  institutionId: string;
+  facultyId: string;
+  departmentId: string;
+  studentNumber: string;
   bio: string;
   skills: SkillOption[];
   cvFile: File | null;
@@ -59,6 +66,9 @@ export default function StudentOnboarding() {
 
   const [step, setStep] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [institutions, setInstitutions] = useState<Array<{ id: string; name: string }>>([]);
+  const [faculties, setFaculties] = useState<Array<{ id: string; name: string; institutionId: string }>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string; institutionId: string; facultyId?: string | null }>>([]);
 
   const [formData, setFormData] = useState<FormData>({
     rolePreference: "",
@@ -68,6 +78,10 @@ export default function StudentOnboarding() {
     university: "",
     major: "",
     graduationYear: "",
+    institutionId: "",
+    facultyId: "",
+    departmentId: "",
+    studentNumber: "",
     bio: "",
     skills: [],
     cvFile: null,
@@ -76,6 +90,30 @@ export default function StudentOnboarding() {
   const [errors, setErrors] = useState<Errors>({});
 
   const progress = ((step + 1) / STEPS.length) * 100;
+
+  useEffect(() => {
+    const loadReferenceData = async () => {
+      try {
+        const [institutionsRes, facultiesRes, departmentsRes] = await Promise.all([
+          supabase.from(TABLES.INSTITUTION).select("id, name").order("name", { ascending: true }),
+          supabase.from(TABLES.FACULTY_SCHOOL).select("id, name, institutionId").order("name", { ascending: true }),
+          supabase.from(TABLES.DEPARTMENT).select("id, name, institutionId, facultyId").order("name", { ascending: true }),
+        ]);
+
+        if (institutionsRes.error) throw institutionsRes.error;
+        if (facultiesRes.error) throw facultiesRes.error;
+        if (departmentsRes.error) throw departmentsRes.error;
+
+        setInstitutions((institutionsRes.data as Array<{ id: string; name: string }>) || []);
+        setFaculties((facultiesRes.data as Array<{ id: string; name: string; institutionId: string }>) || []);
+        setDepartments((departmentsRes.data as Array<{ id: string; name: string; institutionId: string; facultyId?: string | null }>) || []);
+      } catch (error) {
+        console.error("Failed to load institution metadata:", error);
+      }
+    };
+
+    loadReferenceData();
+  }, []);
 
   // Auto-save draft
   useEffect(() => {
@@ -155,11 +193,51 @@ export default function StudentOnboarding() {
   };
 
   const handleComplete = async () => {
-    if (!validateStep(4)) return;
+    if (!validateStep(4) || !user?.id) return;
 
     setIsSubmitting(true);
     try {
-      // TODO: Send data to backend here
+      let cvPath: string | null = null;
+      if (formData.cvFile) {
+        const uploadForm = new FormData();
+        uploadForm.append("file", formData.cvFile);
+        const uploadRes = await apiAuthenticationServicePost("/upload/cv", uploadForm);
+        cvPath = uploadRes.data?.path || null;
+      }
+
+      await apiAuthenticationServicePut(`/users/${user.id}`, {
+        name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        university: formData.university,
+        major: formData.major,
+        bio: formData.bio,
+        ...(formData.graduationYear ? { graduationYear: formData.graduationYear } : {}),
+        ...(cvPath ? { cvUrl: cvPath } : {}),
+      });
+
+      if (formData.institutionId) {
+        const affiliationPayload = {
+          id: crypto.randomUUID(),
+          studentId: user.id,
+          institutionId: formData.institutionId,
+          facultyId: formData.facultyId || null,
+          departmentId: formData.departmentId || null,
+          studentNumber: formData.studentNumber.trim() || null,
+          isPrimary: true,
+          startDate: null,
+          endDate: null,
+        };
+
+        const { error: affiliationError } = await supabase
+          .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+          .upsert(affiliationPayload, { onConflict: "id" });
+
+        if (affiliationError) {
+          throw affiliationError;
+        }
+      }
+
       localStorage.setItem("ic_onboarded", "true");
       localStorage.removeItem("ic_onboarding_draft");
 
@@ -168,7 +246,8 @@ export default function StudentOnboarding() {
         description: "Welcome to InternshipConnect",
       });
       navigate("/student");
-    } catch {
+    } catch (error) {
+      console.error("Failed to save onboarding profile:", error);
       toast({
         title: "Failed to save profile",
         description: "Please try again",
@@ -274,64 +353,151 @@ export default function StudentOnboarding() {
 
             {/* Step 1: Personal Details */}
             {step === 1 && (
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Full Name *</Label>
-                  <Input
-                    value={formData.fullName}
-                    onChange={(e) => updateField("fullName", e.target.value)}
-                    className={errors.fullName ? "border-destructive" : ""}
-                  />
-                  {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
+              <>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Full Name *</Label>
+                    <Input
+                      value={formData.fullName}
+                      onChange={(e) => updateField("fullName", e.target.value)}
+                      className={errors.fullName ? "border-destructive" : ""}
+                    />
+                    {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email *</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => updateField("email", e.target.value)}
+                      className={errors.email ? "border-destructive" : ""}
+                    />
+                    {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      type="tel"
+                      placeholder="+1 (555) 000-0000"
+                      value={formData.phone}
+                      onChange={(e) => updateField("phone", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>University *</Label>
+                    <Input
+                      placeholder="e.g. MIT"
+                      value={formData.university}
+                      onChange={(e) => updateField("university", e.target.value)}
+                      className={errors.university ? "border-destructive" : ""}
+                    />
+                    {errors.university && <p className="text-xs text-destructive">{errors.university}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Major *</Label>
+                    <Input
+                      placeholder="e.g. Computer Science"
+                      value={formData.major}
+                      onChange={(e) => updateField("major", e.target.value)}
+                      className={errors.major ? "border-destructive" : ""}
+                    />
+                    {errors.major && <p className="text-xs text-destructive">{errors.major}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Expected Graduation</Label>
+                    <Input
+                      placeholder="e.g. 2027"
+                      value={formData.graduationYear}
+                      onChange={(e) => updateField("graduationYear", e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Email *</Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => updateField("email", e.target.value)}
-                    className={errors.email ? "border-destructive" : ""}
-                  />
-                  {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+
+                <div className="mt-6 rounded-xl border bg-muted/20 p-4 space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium">Institutional affiliation (optional)</h3>
+                  <p className="text-xs text-muted-foreground">Leave these blank if you are not affiliated with an institution.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input
-                    type="tel"
-                    placeholder="+1 (555) 000-0000"
-                    value={formData.phone}
-                    onChange={(e) => updateField("phone", e.target.value)}
-                  />
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Institution</Label>
+                    <select
+                      value={formData.institutionId}
+                      onChange={(e) => {
+                        updateField("institutionId", e.target.value);
+                        updateField("facultyId", "");
+                        updateField("departmentId", "");
+                      }}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="">Select an institution</option>
+                      {institutions.map((institution) => (
+                        <option key={institution.id} value={institution.id}>
+                          {institution.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Student number</Label>
+                    <Input
+                      placeholder="e.g. 202405001"
+                      value={formData.studentNumber}
+                      onChange={(e) => updateField("studentNumber", e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>University *</Label>
-                  <Input
-                    placeholder="e.g. MIT"
-                    value={formData.university}
-                    onChange={(e) => updateField("university", e.target.value)}
-                    className={errors.university ? "border-destructive" : ""}
-                  />
-                  {errors.university && <p className="text-xs text-destructive">{errors.university}</p>}
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Faculty / School</Label>
+                    <select
+                      value={formData.facultyId}
+                      onChange={(e) => {
+                        updateField("facultyId", e.target.value);
+                        updateField("departmentId", "");
+                      }}
+                      disabled={!formData.institutionId}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Select faculty / school</option>
+                      {faculties
+                        .filter((faculty) => faculty.institutionId === formData.institutionId)
+                        .map((faculty) => (
+                          <option key={faculty.id} value={faculty.id}>
+                            {faculty.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <select
+                      value={formData.departmentId}
+                      onChange={(e) => updateField("departmentId", e.target.value)}
+                      disabled={!formData.institutionId}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Select department</option>
+                      {departments
+                        .filter(
+                          (department) =>
+                            department.institutionId === formData.institutionId &&
+                            (!formData.facultyId || department.facultyId === formData.facultyId)
+                        )
+                        .map((department) => (
+                          <option key={department.id} value={department.id}>
+                            {department.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Major *</Label>
-                  <Input
-                    placeholder="e.g. Computer Science"
-                    value={formData.major}
-                    onChange={(e) => updateField("major", e.target.value)}
-                    className={errors.major ? "border-destructive" : ""}
-                  />
-                  {errors.major && <p className="text-xs text-destructive">{errors.major}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label>Expected Graduation</Label>
-                  <Input
-                    placeholder="e.g. 2027"
-                    value={formData.graduationYear}
-                    onChange={(e) => updateField("graduationYear", e.target.value)}
-                  />
-                </div>
-              </div>
+              </>
             )}
 
             {/* Step 2: Skills & Bio */}

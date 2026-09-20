@@ -12,6 +12,13 @@ export const TABLES = {
   MESSAGE: "Message",
   MEETING: "Meeting",
   SUPERVISOR_INVITATION: "SupervisorInvitation",
+  COORDINATOR_INVITATION: "CoordinatorInvitation",
+  DEPARTMENT_COORDINATOR_REQUEST: "DepartmentCoordinatorRequest",
+  INSTITUTION: "Institution",
+  FACULTY_SCHOOL: "FacultySchool",
+  DEPARTMENT: "Department",
+  STUDENT_INSTITUTION_AFFILIATION: "StudentInstitutionAffiliation",
+  COORDINATOR_ASSIGNMENT: "CoordinatorAssignment",
 } as const;
 
 export const STORAGE = {

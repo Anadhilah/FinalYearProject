@@ -44,16 +44,32 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import ManageUsers from "./pages/admin/ManageUsers";
 import ManageRecruiters from "./pages/admin/ManageRecruiters";
 import AdminManageInternships from "./pages/admin/ManageInternships";
+import CoordinatorRequests from "./pages/admin/CoordinatorRequests";
 import FloatingChat from "./components/chat/FloatingChat";
 
 import SupervisorLayout from "./components/layouts/SupervisorLayout";
 import SupervisorOverview from "./pages/supervisor/Overview";
 import SupervisorStudents from "./pages/supervisor/MyStudents";
 import SupervisorStudentDetails from "./pages/supervisor/StudentDetails";
+import SupervisorAssignTasks from "./pages/supervisor/AssignTasks";
 import SupervisorLogbooks from "./pages/supervisor/LogbookReview";
 import SupervisorMessages from "./pages/supervisor/Messages";
 import SupervisorActivate from "./pages/supervisor/Activate";
 import ManageSupervisors from "./pages/admin/ManageSupervisors";
+
+import FacultyCoordinatorLayout from "./components/layouts/FacultyCoordinatorLayout";
+import FacultyCoordinatorOverview from "./pages/faculty-coordinator/Overview";
+import FacultyCoordinatorDepartments from "./pages/faculty-coordinator/Departments";
+import FacultyCoordinatorReports from "./pages/faculty-coordinator/Reports";
+import FacultyCoordinatorManagement from "./pages/faculty-coordinator/Management";
+import FacultyCoordinatorPlacements from "./pages/faculty-coordinator/Placements";
+
+import DepartmentCoordinatorLayout from "./components/layouts/DepartmentCoordinatorLayout";
+import DepartmentCoordinatorOverview from "./pages/department-coordinator/Overview";
+import DepartmentCoordinatorStudents from "./pages/department-coordinator/Students";
+import DepartmentCoordinatorOrganisations from "./pages/department-coordinator/Organisations";
+import DepartmentCoordinatorReports from "./pages/department-coordinator/Reports";
+import DepartmentCoordinatorPlacements from "./pages/department-coordinator/Placements";
 
 
 const queryClient = new QueryClient();
@@ -112,6 +128,7 @@ function App() {
               <Route path="recruiters" element={<ManageRecruiters />} />
               <Route path="supervisors" element={<ManageSupervisors />} />
               <Route path="internships" element={<AdminManageInternships />} />
+              <Route path="coordinator-requests" element={<CoordinatorRequests />} />
             </Route>
 
             {/* Supervisor Routes */}
@@ -119,8 +136,27 @@ function App() {
               <Route index element={<SupervisorOverview />} />
               <Route path="students" element={<SupervisorStudents />} />
               <Route path="students/:studentId" element={<SupervisorStudentDetails />} />
+              <Route path="students/:studentId/tasks" element={<SupervisorAssignTasks />} />
               <Route path="logbooks" element={<SupervisorLogbooks />} />
               <Route path="messages" element={<SupervisorMessages />} />
+            </Route>
+
+            {/* Faculty Coordinator Routes */}
+            <Route path="/faculty-coordinator" element={<FacultyCoordinatorLayout />}>
+              <Route index element={<FacultyCoordinatorOverview />} />
+              <Route path="departments" element={<FacultyCoordinatorDepartments />} />
+              <Route path="reports" element={<FacultyCoordinatorReports />} />
+              <Route path="management" element={<FacultyCoordinatorManagement />} />
+              <Route path="placements" element={<FacultyCoordinatorPlacements />} />
+            </Route>
+
+            {/* Department Coordinator Routes */}
+            <Route path="/department-coordinator" element={<DepartmentCoordinatorLayout />}>
+              <Route index element={<DepartmentCoordinatorOverview />} />
+              <Route path="students" element={<DepartmentCoordinatorStudents />} />
+              <Route path="organisations" element={<DepartmentCoordinatorOrganisations />} />
+              <Route path="reports" element={<DepartmentCoordinatorReports />} />
+              <Route path="placements" element={<DepartmentCoordinatorPlacements />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

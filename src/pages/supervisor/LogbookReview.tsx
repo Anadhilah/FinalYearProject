@@ -1,119 +1,134 @@
-import { useEffect, useState } from "react";
-import { fetchSupervisorLogbooks } from "@/services/supabase-api";
-import api from "@/api/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { LOGBOOK_STATUS_LABELS, logbookBadgeClass } from "@/lib/logbookStatus";
+import { FileCheck2, CheckCircle2, XCircle, NotebookPen } from "lucide-react";
 
-interface ReviewItem {
-  id: string;
-  student?: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null } | null;
-  internship?: { id: string; title?: string | null } | null;
-  weekNumber?: number | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  tasksPerformed?: string | null;
-  skillsLearned?: string | null;
-  challengesFaced?: string | null;
-  hoursWorked?: number | null;
-  attachmentUrls?: string | null;
-  status: string;
-  recruiterComment?: string | null;
-  supervisorComment?: string | null;
-  createdAt?: string | null;
-}
+const reviewQueue = [
+  {
+    student: "Maya Patel",
+    week: "Week 5",
+    title: "Frontend improvements and testing",
+    summary: "Implemented responsive dashboard updates and completed regression checks for the main modules.",
+    status: "Pending review",
+    hours: 22,
+  },
+  {
+    student: "Daniel Okafor",
+    week: "Week 4",
+    title: "Systems internship update",
+    summary: "Shared progress notes on the deployment setup and identified one issue in the staging environment.",
+    status: "Needs revision",
+    hours: 18,
+  },
+  {
+    student: "Aisha Bello",
+    week: "Week 3",
+    title: "Campaign planning notes",
+    summary: "Prepared campaign insights and explained the rationale behind the target audience segmentation.",
+    status: "Approved",
+    hours: 16,
+  },
+];
 
 export default function SupervisorLogbooks() {
-  const [reports, setReports] = useState<ReviewItem[]>([]);
-  const [comments, setComments] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const loadReports = async () => {
-    const data = await fetchSupervisorLogbooks();
-    setReports(data as ReviewItem[]);
-  };
-
-  useEffect(() => {
-    loadReports().catch(() => setMessage("Unable to load reports"));
-  }, []);
-
-  const reviewReport = async (reportId: string, status: string) => {
-    setLoading(true);
-    try {
-      const comment = comments[reportId] || "";
-      await api.post(
-        `/logbooks/${reportId}/supervisor-comment`,
-        { status, comment },
-        {}
-      );
-      setMessage(`Report ${status.toLowerCase().replace(/_/g, " ")} successfully.`);
-      setComments((prev) => {
-        const next = { ...prev };
-        delete next[reportId];
-        return next;
-      });
-      await loadReports();
-    } catch {
-      setMessage("Unable to review report.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-display font-bold">Logbook Reviews</h2>
-        <p className="text-muted-foreground">Review weekly reports from your supervised students.</p>
+        <h2 className="text-2xl font-display font-bold">Submitted work / logbook reviews</h2>
+        <p className="text-muted-foreground">Review intern submissions, provide feedback, and approve or reject reports.</p>
       </div>
-      {message && <div className="rounded-lg border border-border bg-card p-3 text-sm">{message}</div>}
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <NotebookPen className="h-4 w-4" />
+              Pending
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-display font-bold">4</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              Approved
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-display font-bold">11</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <XCircle className="h-4 w-4" />
+              Needs revision
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-display font-bold">3</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="space-y-4">
-        {reports.map((report) => (
-          <Card key={report.id} className="shadow-card">
+        {reviewQueue.map((report) => (
+          <Card key={`${report.student}-${report.week}`} className="shadow-card">
             <CardHeader>
-              <CardTitle className="text-base">{report.student?.name || report.student?.email || "Student"} · Week {report.weekNumber}</CardTitle>
+              <CardTitle className="text-base flex items-center justify-between gap-2">
+                <span>{report.student} · {report.week}</span>
+                <Badge
+                  variant={
+                    report.status === "Approved"
+                      ? "default"
+                      : report.status === "Needs revision"
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {report.status}
+                </Badge>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {report.internship?.title || "Internship"} · {report.startDate || "—"} to {report.endDate || "—"}
-                </p>
-                <Badge variant="outline" className={logbookBadgeClass(report.status)}>
-                  {LOGBOOK_STATUS_LABELS[report.status] || report.status}
-                </Badge>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>{report.title}</span>
+                <span>{report.hours} hours</span>
               </div>
-              <div className="text-sm space-y-2">
-                <p><span className="font-medium">Tasks:</span> {report.tasksPerformed || "—"}</p>
-                <p><span className="font-medium">Skills:</span> {report.skillsLearned || "—"}</p>
-                <p><span className="font-medium">Challenges:</span> {report.challengesFaced || "—"}</p>
-                <p><span className="font-medium">Hours:</span> {report.hoursWorked ?? 0}</p>
+              <p className="text-sm text-muted-foreground">{report.summary}</p>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Your feedback</label>
+                <Textarea
+                  rows={3}
+                  defaultValue={
+                    report.status === "Approved"
+                      ? "Great work this week. Continue documenting your results clearly."
+                      : report.status === "Needs revision"
+                        ? "Please include a more detailed summary of the challenges you faced and how you overcame them."
+                        : "Please add one more example of how the work improved the team process."
+                  }
+                />
               </div>
-              {report.recruiterComment && (
-                <p className="text-sm rounded-lg bg-muted/50 p-2">
-                  <span className="font-medium">Recruiter comment:</span> {report.recruiterComment}
-                </p>
-              )}
-              <Textarea
-                value={comments[report.id] ?? report.supervisorComment ?? ""}
-                onChange={(e) => setComments({ ...comments, [report.id]: e.target.value })}
-                placeholder="Leave supervisor feedback"
-                rows={3}
-              />
+
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => reviewReport(report.id, "APPROVED")} disabled={loading}>
+                <Button size="sm">
+                  <FileCheck2 className="h-4 w-4 mr-2" />
                   Approve
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => reviewReport(report.id, "NEEDS_REVISION")} disabled={loading}>
-                  Request Changes
+                <Button size="sm" variant="outline">
+                  Reject
                 </Button>
               </div>
             </CardContent>
           </Card>
         ))}
-        {!reports.length && <p className="text-sm text-muted-foreground">No reports available yet.</p>}
       </div>
     </div>
   );

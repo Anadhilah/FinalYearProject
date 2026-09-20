@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getSupervisorInvitation, activateSupervisorInvitation } from "@/services/supabase-api";
+import { getCoordinatorInvitation, activateCoordinatorInvitation } from "@/services/supabase-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,14 +13,13 @@ type InviteInfo = {
   reason?: string;
   email?: string;
   name?: string;
-  department?: string | null;
-  university?: string | null;
 };
 
-export default function SupervisorActivate() {
+export default function CoordinatorActivate() {
   const { token } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [info, setInfo] = useState<InviteInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -36,7 +35,8 @@ export default function SupervisorActivate() {
       setLoading(false);
       return;
     }
-    getSupervisorInvitation(token)
+
+    getCoordinatorInvitation(token)
       .then((res) => {
         setInfo(res);
         if (res.valid) setName((res.name || "").trim());
@@ -48,21 +48,28 @@ export default function SupervisorActivate() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
+
     if (password.length < 8) {
       toast({ title: "Password too short", description: "Use at least 8 characters.", variant: "destructive" });
       return;
     }
+
     if (password !== confirm) {
       toast({ title: "Passwords do not match", variant: "destructive" });
       return;
     }
+
     setSubmitting(true);
     try {
-      const result = await activateSupervisorInvitation(token, name || info?.name || "", password);
-      toast({ title: "Account activated!", description: `Welcome, Company Internship Supervisor. You can now log in with ${result.email}.` });
+      const result = await activateCoordinatorInvitation(token, name || info?.name || "", password);
+      toast({ title: "Account activated!", description: `Welcome, Department Coordinator. You can now log in with ${result.email}.` });
       navigate("/login", { replace: true });
     } catch (err) {
-      toast({ title: "Activation failed", description: (err as { message?: string })?.message || "Please try again.", variant: "destructive" });
+      toast({
+        title: "Activation failed",
+        description: (err as { message?: string })?.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -81,8 +88,9 @@ export default function SupervisorActivate() {
       info?.reason === "used"
         ? "This invitation has already been used."
         : info?.reason === "expired"
-        ? "This invitation link has expired. Please ask the student to send a new one."
-        : "This invitation link is invalid.";
+          ? "This invitation link has expired. Please ask the admin to send a new one."
+          : "This invitation link is invalid.";
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="w-full max-w-sm text-center space-y-4">
@@ -103,20 +111,22 @@ export default function SupervisorActivate() {
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <img src={logo} alt="InternshipConnect" className="h-16 w-16 object-contain mx-auto mb-8 md:hidden" />
-          <h1 className="text-3xl font-display font-bold mb-1">Become a Company Internship Supervisor</h1>
+          <h1 className="text-3xl font-display font-bold mb-1">Activate Department Coordinator Account</h1>
           <p className="text-muted-foreground text-sm mb-8">
-            You have been invited to supervise students at {info.university || "your university"}.
-            Create a password to activate your account.
+            Complete your account setup to become a Department Coordinator in InternshipConnect.
           </p>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" value={info.email || ""} disabled />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" required />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -131,6 +141,7 @@ export default function SupervisorActivate() {
                 </button>
               </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="confirm">Confirm Password</Label>
               <div className="relative">
@@ -145,6 +156,7 @@ export default function SupervisorActivate() {
                 </button>
               </div>
             </div>
+
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? "Activating…" : "Activate Account"}
             </Button>

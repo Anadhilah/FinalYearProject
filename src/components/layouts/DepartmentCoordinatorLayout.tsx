@@ -1,24 +1,23 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Users, NotebookPen, MessageCircle, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, Building2, FileText, BriefcaseBusiness, LogOut, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { useMessages } from "@/contexts/MessagesContext";
 
 const navItems = [
-  { label: "Overview", path: "/supervisor", icon: LayoutDashboard },
-  { label: "My Students", path: "/supervisor/students", icon: Users },
-  { label: "Logbook Reviews", path: "/supervisor/logbooks", icon: NotebookPen },
-  { label: "Messages", path: "/supervisor/messages", icon: MessageCircle },
+  { label: "Overview", path: "/department-coordinator", icon: LayoutDashboard },
+  { label: "Students", path: "/department-coordinator/students", icon: Users },
+  { label: "Organisations", path: "/department-coordinator/organisations", icon: Building2 },
+  { label: "Reports", path: "/department-coordinator/reports", icon: FileText },
+  { label: "Placements", path: "/department-coordinator/placements", icon: BriefcaseBusiness },
 ];
 
-export default function SupervisorLayout() {
+export default function DepartmentCoordinatorLayout() {
   const { user } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { unreadCount } = useMessages();
 
   return (
     <div className="min-h-screen flex bg-muted/30">
@@ -28,33 +27,37 @@ export default function SupervisorLayout() {
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sidebar-border">
           <img src={logo} alt="InternshipConnect" className="h-8 w-8 rounded-lg object-contain" />
-          <span className="font-display font-bold text-sm text-sidebar-primary-foreground">InternshipConnect</span>
+          <span className="font-display font-bold text-sm text-sidebar-primary-foreground">Department Portal</span>
           <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
           </button>
         </div>
+
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
-            const active = location.pathname === item.path;
+            const active = location.pathname === item.path || (item.path === "/department-coordinator" && location.pathname.startsWith("/department-coordinator"));
             return (
-              <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}
-                className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
                   active ? "bg-sidebar-accent text-sidebar-primary-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-                )}>
+                )}
+              >
                 <item.icon className="h-4 w-4" />
                 <span className="flex-1">{item.label}</span>
-                {item.path === "/supervisor/messages" && unreadCount > 0 && (
-                  <span className="h-5 min-w-5 px-1.5 rounded-full bg-accent text-[10px] font-bold text-accent-foreground flex items-center justify-center">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
               </Link>
             );
           })}
         </nav>
+
         <div className="p-3 border-t border-sidebar-border">
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-medium">{user?.name?.charAt(0)}</div>
+            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-medium">
+              {user?.name?.charAt(0)}
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.name}</p>
               <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</p>
@@ -65,13 +68,19 @@ export default function SupervisorLayout() {
           </LogoutButton>
         </div>
       </aside>
+
       {sidebarOpen && <div className="fixed inset-0 bg-foreground/20 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 flex items-center px-4 border-b bg-card sticky top-0 z-20">
-          <button className="lg:hidden mr-3" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></button>
-          <h1 className="font-display font-semibold text-lg">Company Supervisor Dashboard</h1>
+          <button className="lg:hidden mr-3" onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-5 w-5" />
+          </button>
+          <h1 className="font-display font-semibold text-lg">Department Coordinator Dashboard</h1>
         </header>
-        <main className="flex-1 p-4 md:p-6"><Outlet /></main>
+        <main className="flex-1 p-4 md:p-6">
+          <Outlet />
+        </main>
       </div>
     </div>
   );

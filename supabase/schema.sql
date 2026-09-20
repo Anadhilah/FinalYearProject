@@ -13,7 +13,7 @@
 -- Enum types (must be created before the tables that use them)
 -- ============================================================
 do $$ begin
-  create type "Role" as enum ('STUDENT', 'RECRUITER', 'ADMIN', 'SUPERVISOR');
+  create type "Role" as enum ('STUDENT', 'RECRUITER', 'ADMIN', 'SUPERVISOR', 'FACULTY_COORDINATOR', 'DEPARTMENT_COORDINATOR');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -192,6 +192,88 @@ create table if not exists "SupervisorInvitation" (
   "updatedAt" timestamptz not null default now()
 );
 alter table "SupervisorInvitation" enable row level security;
+
+-- ---------- CoordinatorInvitation ----------
+create table if not exists "CoordinatorInvitation" (
+  id text primary key,
+  email text not null,
+  name text,
+  role text not null default 'DEPARTMENT_COORDINATOR',
+  "tokenHash" text,
+  "tokenExpiresAt" timestamptz,
+  "activatedAt" timestamptz,
+  "activatedById" text references "User" (id) on delete set null,
+  status text not null default 'SENT',
+  "createdById" text references "User" (id) on delete set null,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
+);
+alter table "CoordinatorInvitation" enable row level security;
+
+-- ---------- Institution ----------
+create table if not exists "Institution" (
+  id text primary key,
+  name text not null,
+  slug text,
+  description text,
+  createdAt timestamptz not null default now(),
+  updatedAt timestamptz not null default now()
+);
+alter table "Institution" enable row level security;
+
+-- ---------- FacultySchool ----------
+create table if not exists "FacultySchool" (
+  id text primary key,
+  institutionId text not null references "Institution" (id) on delete cascade,
+  name text not null,
+  description text,
+  createdAt timestamptz not null default now(),
+  updatedAt timestamptz not null default now()
+);
+alter table "FacultySchool" enable row level security;
+
+-- ---------- Department ----------
+create table if not exists "Department" (
+  id text primary key,
+  institutionId text not null references "Institution" (id) on delete cascade,
+  facultyId text references "FacultySchool" (id) on delete set null,
+  name text not null,
+  description text,
+  createdAt timestamptz not null default now(),
+  updatedAt timestamptz not null default now()
+);
+alter table "Department" enable row level security;
+
+-- ---------- StudentInstitutionAffiliation ----------
+create table if not exists "StudentInstitutionAffiliation" (
+  id text primary key,
+  studentId text not null references "User" (id) on delete cascade,
+  institutionId text not null references "Institution" (id) on delete cascade,
+  facultyId text references "FacultySchool" (id) on delete set null,
+  departmentId text references "Department" (id) on delete set null,
+  studentNumber text,
+  isPrimary boolean not null default true,
+  startDate date,
+  endDate date,
+  createdAt timestamptz not null default now(),
+  updatedAt timestamptz not null default now()
+);
+alter table "StudentInstitutionAffiliation" enable row level security;
+
+-- ---------- CoordinatorAssignment ----------
+create table if not exists "CoordinatorAssignment" (
+  id text primary key,
+  coordinatorId text not null references "User" (id) on delete cascade,
+  role text,
+  status text not null default 'PENDING',
+  institutionId text references "Institution" (id) on delete set null,
+  facultyId text references "FacultySchool" (id) on delete set null,
+  departmentId text references "Department" (id) on delete set null,
+  assignedById text references "User" (id) on delete set null,
+  createdAt timestamptz not null default now(),
+  updatedAt timestamptz not null default now()
+);
+alter table "CoordinatorAssignment" enable row level security;
 
 -- ============================================================
 -- ROW LEVEL SECURITY
@@ -384,6 +466,11 @@ drop policy if exists "Students update own supervisor invitations" on "Superviso
 create policy "Students update own supervisor invitations" on "SupervisorInvitation"
   for update using ("studentId" = auth.uid()::text or public.get_my_role() = 'ADMIN');
 
+-- ---------- CoordinatorInvitation ----------
+drop policy if exists "Admins manage coordinator invitations" on "CoordinatorInvitation";
+create policy "Admins manage coordinator invitations" on "CoordinatorInvitation"
+  for all using (public.get_my_role() = 'ADMIN');
+
 -- ---------- Meeting ----------
 drop policy if exists "Participants read meetings" on "Meeting";
 create policy "Participants read meetings" on "Meeting"
@@ -454,7 +541,7 @@ begin
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', ''),
-    coalesce((new.raw_user_meta_data->>'role')::"Role", 'STUDENT'),
+    coalesce(upper(replace(new.raw_user_meta_data->>'role', '-', '_'))::"Role", 'STUDENT'),
     false,
     new.email_confirmed_at is not null,
     now(),
@@ -490,6 +577,7 @@ grant all on table "Message" to anon, authenticated;
 grant all on table "WeeklyLogbookReport" to anon, authenticated;
 grant all on table "Meeting" to anon, authenticated;
 grant all on table "SupervisorInvitation" to anon, authenticated;
+grant all on table "CoordinatorInvitation" to anon, authenticated;
 
 -- Allow the RLS helper function to be executed by app queries.
 grant execute on function public.get_my_role() to anon, authenticated;
@@ -703,6 +791,116 @@ end;
 $$;
 
 grant execute on function public.get_supervisor_invitation(text) to anon, authenticated;
+
+-- ============================================================
+-- SECURITY DEFINER: read a coordinator invitation by raw token
+-- Used by the public activation page before the coordinator has an account.
+-- ============================================================
+create or replace function public.get_coordinator_invitation(
+  p_raw_token text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_inv "CoordinatorInvitation"%rowtype;
+begin
+  select * into v_inv
+  from "CoordinatorInvitation"
+  where "tokenHash" = encode(sha256(convert_to(coalesce(p_raw_token, ''), 'UTF8')), 'hex')
+  limit 1;
+
+  if v_inv.id is null then
+    return jsonb_build_object('valid', false, 'reason', 'invalid');
+  end if;
+
+  if v_inv.status in ('ACTIVATED', 'ACTIVE') or v_inv."activatedAt" is not null then
+    return jsonb_build_object('valid', false, 'reason', 'used');
+  end if;
+
+  if v_inv."tokenExpiresAt" is not null and v_inv."tokenExpiresAt" < now() then
+    return jsonb_build_object('valid', false, 'reason', 'expired');
+  end if;
+
+  return jsonb_build_object(
+    'valid', true,
+    'id', v_inv.id,
+    'email', v_inv.email,
+    'name', v_inv.name,
+    'role', v_inv.role
+  );
+end;
+$$;
+
+grant execute on function public.get_coordinator_invitation(text) to anon, authenticated;
+
+-- ============================================================
+-- SECURITY DEFINER: activate a coordinator invitation token
+-- Creates or updates the coordinator's User row and marks the invite used.
+-- ============================================================
+create or replace function public.activate_coordinator_invitation(
+  p_raw_token text,
+  p_user_id text,
+  p_user_email text,
+  p_user_name text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_inv "CoordinatorInvitation"%rowtype;
+  v_user_id text;
+begin
+  select * into v_inv
+  from "CoordinatorInvitation"
+  where "tokenHash" = encode(sha256(convert_to(coalesce(p_raw_token, ''), 'UTF8')), 'hex')
+  limit 1;
+
+  if v_inv.id is null then
+    return jsonb_build_object('success', false, 'message', 'Invalid invitation link.');
+  end if;
+
+  if v_inv.status in ('ACTIVATED', 'ACTIVE') or v_inv."activatedAt" is not null then
+    return jsonb_build_object('success', false, 'message', 'This invitation has already been used.');
+  end if;
+
+  if v_inv."tokenExpiresAt" is not null and v_inv."tokenExpiresAt" < now() then
+    return jsonb_build_object('success', false, 'message', 'This invitation link has expired.');
+  end if;
+
+  select public.ensure_user_profile(
+    p_user_id,
+    p_user_email,
+    coalesce(nullif(p_user_name, ''), 'Department Coordinator'),
+    coalesce(v_inv.role, 'DEPARTMENT_COORDINATOR'),
+    true,
+    true,
+    null,
+    null,
+    null,
+    null,
+    null
+  ) into v_user_id;
+
+  update "CoordinatorInvitation"
+  set status = 'ACTIVATED',
+      "activatedAt" = now(),
+      "activatedById" = p_user_id,
+      "updatedAt" = now()
+  where id = v_inv.id;
+
+  return jsonb_build_object(
+    'success', true,
+    'message', 'Invitation activated.',
+    'userId', p_user_id,
+    'email', p_user_email
+  );
+end;
+$$;
+
+grant execute on function public.activate_coordinator_invitation(text, text, text, text) to anon, authenticated;
 
 -- ============================================================
 -- Storage bucket for uploads

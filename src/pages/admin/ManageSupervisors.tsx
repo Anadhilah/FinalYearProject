@@ -128,15 +128,15 @@ export default function ManageSupervisors() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-display font-bold">Manage Supervisors</h2>
-        <p className="text-muted-foreground">View university supervisors, their assigned students, and invitations.</p>
+        <h2 className="text-2xl font-display font-bold">Manage Company Internship Supervisors</h2>
+        <p className="text-muted-foreground">View company internship supervisors, their assigned students, and invitations.</p>
       </div>
 
       {error && <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</div>}
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search supervisors…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder="Search company internship supervisors…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       <Card className="shadow-card">
@@ -144,7 +144,7 @@ export default function ManageSupervisors() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Supervisor</TableHead>
+                <TableHead>Company Internship Supervisor</TableHead>
                 <TableHead className="hidden md:table-cell">University</TableHead>
                 <TableHead className="hidden sm:table-cell">Students</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned Internships</TableHead>
@@ -156,7 +156,7 @@ export default function ManageSupervisors() {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No supervisors found.
+                    No company internship supervisors found.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -201,9 +201,9 @@ export default function ManageSupervisors() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <GraduationCap className="h-5 w-5 text-primary" />
-                  {selected.name ?? "Supervisor"}
+                  {selected.name ?? "Company Internship Supervisor"}
                 </DialogTitle>
-                <DialogDescription>Supervisor details and assignments</DialogDescription>
+                <DialogDescription>Company Internship Supervisor details and assignments</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-4 py-4">
                 <DetailItem label="Name" value={selected.name ?? "—"} />

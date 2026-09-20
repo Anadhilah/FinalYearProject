@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Users, Settings, LogOut, Menu, X, Shield, Building2, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Menu, X, Shield, Building2, GraduationCap, ClipboardCheck } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -11,7 +11,9 @@ const navItems = [
   { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
   { label: "Manage Users", path: "/admin/users", icon: Users },
   { label: "Manage Recruiters", path: "/admin/recruiters", icon: Building2 },
-  { label: "Manage Supervisors", path: "/admin/supervisors", icon: GraduationCap },
+  { label: "Coordinator Requests", path: "/admin/coordinator-requests", icon: ClipboardCheck },
+  { label: "Invite Coordinators", path: "/admin/coordinators", icon: Shield },
+  { label: "Manage Company Internship Supervisors", path: "/admin/supervisors", icon: GraduationCap },
   { label: "Manage Internships", path: "/admin/internships", icon: Settings },
 ];
 
