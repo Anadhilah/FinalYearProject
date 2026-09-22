@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Building2, FileText, Users, LogOut, Menu, X, BriefcaseBusiness, KeyRound } from "lucide-react";
+import { LayoutDashboard, Building2, FileText, LogOut, Menu, X, BriefcaseBusiness, KeyRound, MessageCircle, Users } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,8 @@ const navItems = [
   { label: "Overview", path: "/faculty-coordinator", icon: LayoutDashboard },
   { label: "Departments", path: "/faculty-coordinator/departments", icon: Building2 },
   { label: "Reports", path: "/faculty-coordinator/reports", icon: FileText },
-  { label: "Management", path: "/faculty-coordinator/management", icon: Users },
+  { label: "Messages", path: "/faculty-coordinator/messages", icon: MessageCircle },
+  { label: "Assigned students", path: "/faculty-coordinator/students", icon: Users },
   { label: "Placements", path: "/faculty-coordinator/placements", icon: BriefcaseBusiness },
   { label: "Change password", path: "/change-password", icon: KeyRound },
 ];
@@ -36,7 +37,7 @@ export default function FacultyCoordinatorLayout() {
 
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
-            const active = location.pathname === item.path || (item.path === "/faculty-coordinator" && location.pathname.startsWith("/faculty-coordinator"));
+            const active = location.pathname === item.path;
             return (
               <Link
                 key={item.path}

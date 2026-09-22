@@ -315,7 +315,7 @@ async function getDepartmentCoordinatorScopeFilters(): Promise<CoordinatorScopeF
   const { data: authData } = await supabase.auth.getUser();
   const userId = authData?.user?.id;
   if (!userId) {
-    return { hasSpecificScope: false, institutionIds: new Set(), facultyIds: new Set(), departmentIds: new Set() };
+    return { hasSpecificScope: false, studentIds: new Set(), institutionIds: new Set(), facultyIds: new Set(), departmentIds: new Set() };
   }
 
   const { data, error } = await supabase
@@ -329,7 +329,7 @@ async function getDepartmentCoordinatorScopeFilters(): Promise<CoordinatorScopeF
     const facultyIds = new Set([String(data.facultyId || "")].filter(Boolean));
     const departmentIds = new Set([String(data.departmentId || "")].filter(Boolean));
     if (institutionIds.size || facultyIds.size || departmentIds.size) {
-      return { hasSpecificScope: true, institutionIds, facultyIds, departmentIds };
+      return { hasSpecificScope: true, studentIds: new Set(), institutionIds, facultyIds, departmentIds };
     }
   }
 
@@ -461,7 +461,7 @@ export async function fetchDepartmentCoordinatorOverviewData(): Promise<Departme
   const endDatesByStudentId = new Map(
     affiliations
       .filter((affiliation) => !allowedStudentIds || allowedStudentIds.has(String(affiliation.studentId || "")))
-      .map((affiliation) => [String(affiliation.studentId || ""), String(affiliation.endDate || "")])
+      .map((affiliation): [string, string] => [String(affiliation.studentId || ""), String(affiliation.endDate || "")])
       .filter(([studentId, endDate]) => Boolean(studentId && endDate))
   );
   const studentNamesById = new Map(studentUsers.map((student) => [String(student.id || ""), String(student.name || "Student")]));
@@ -495,6 +495,7 @@ export async function fetchDepartmentCoordinatorOverviewData(): Promise<Departme
       if (allowedStudentIds && !allowedStudentIds.has(String(affiliation.studentId || ""))) return false;
       return assignmentMatchesCoordinatorScope(assignment, {
         hasSpecificScope: Boolean(assignment.institutionId || assignment.facultyId || assignment.departmentId),
+        studentIds: new Set(),
         institutionIds: new Set([String(assignment.institutionId || "")].filter(Boolean)),
         facultyIds: new Set([String(assignment.facultyId || "")].filter(Boolean)),
         departmentIds: new Set([String(assignment.departmentId || "")].filter(Boolean)),
@@ -547,6 +548,7 @@ export interface FacultyCoordinatorOverviewData {
 
 interface CoordinatorScopeFilters {
   hasSpecificScope: boolean;
+  studentIds: Set<string>;
   institutionIds: Set<string>;
   facultyIds: Set<string>;
   departmentIds: Set<string>;
@@ -555,6 +557,7 @@ interface CoordinatorScopeFilters {
 async function getFacultyCoordinatorScopeFilters(): Promise<CoordinatorScopeFilters> {
   const defaults: CoordinatorScopeFilters = {
     hasSpecificScope: false,
+    studentIds: new Set(),
     institutionIds: new Set(),
     facultyIds: new Set(),
     departmentIds: new Set(),
@@ -566,7 +569,7 @@ async function getFacultyCoordinatorScopeFilters(): Promise<CoordinatorScopeFilt
 
   const { data, error } = await supabase
     .from(TABLES.COORDINATOR_ASSIGNMENT)
-    .select("id, status, institutionId, facultyId, departmentId")
+    .select("id, status, studentId, institutionId, facultyId, departmentId")
     .eq("coordinatorId", userId)
     .order("createdAt", { ascending: false });
 
@@ -580,6 +583,11 @@ async function getFacultyCoordinatorScopeFilters(): Promise<CoordinatorScopeFilt
 
   if (activeAssignments.length === 0) return defaults;
 
+  const studentIds = new Set(
+    activeAssignments
+      .map((assignment) => String(assignment.studentId || "").trim())
+      .filter(Boolean)
+  );
   const institutionIds = new Set(
     activeAssignments
       .map((assignment) => String(assignment.institutionId || "").trim())
@@ -597,7 +605,8 @@ async function getFacultyCoordinatorScopeFilters(): Promise<CoordinatorScopeFilt
   );
 
   return {
-    hasSpecificScope: institutionIds.size > 0 || facultyIds.size > 0 || departmentIds.size > 0,
+    hasSpecificScope: studentIds.size > 0 || institutionIds.size > 0 || facultyIds.size > 0 || departmentIds.size > 0,
+    studentIds,
     institutionIds,
     facultyIds,
     departmentIds,
@@ -613,7 +622,9 @@ function assignmentMatchesCoordinatorScope(
   const institutionId = String(assignment.institutionId || "").trim();
   const facultyId = String(assignment.facultyId || "").trim();
   const departmentId = String(assignment.departmentId || "").trim();
+  const studentId = String(assignment.studentId || "").trim();
 
+  if (filters.studentIds.size > 0 && studentId && filters.studentIds.has(studentId)) return true;
   if (filters.departmentIds.size > 0 && departmentId && filters.departmentIds.has(departmentId)) return true;
   if (filters.facultyIds.size > 0 && facultyId && filters.facultyIds.has(facultyId)) return true;
   if (filters.institutionIds.size > 0 && institutionId && filters.institutionIds.has(institutionId)) return true;
@@ -709,7 +720,6 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
   );
 
   const activeInternships = scopedInternships.filter((internship) => normalizeOverviewStatus(String(internship.status || "")).includes("ACTIVE"));
-  const placedStudentIds = new Set(scopedApplications.map((application) => String(application.studentId || "")).filter(Boolean));
 
   const uniqueDepartments = new Set(
     studentUsers
@@ -728,10 +738,27 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
     return normalized.includes("PENDING") || normalized.includes("REVIEW");
   });
 
+  const placedApplications = scopedApplications.filter((application) => {
+    const normalized = normalizeOverviewStatus(String(application.status || ""));
+    return normalized.includes("ACCEPTED") || normalized.includes("APPROVED");
+  });
+
+  const placedStudentIds = new Set(placedApplications.map((application) => String(application.studentId || "")).filter(Boolean));
+
   const dueReports = scopedLogbooks.filter((logbook) => {
     const normalized = normalizeOverviewStatus(String(logbook.status || ""));
     return normalized.includes("DRAFT") || normalized.includes("SUBMITTED") || normalized.includes("PENDING");
   });
+
+  const attentionStudentIds = new Set(
+    scopedLogbooks
+      .filter((logbook) => {
+        const normalized = normalizeOverviewStatus(String(logbook.status || ""));
+        return normalized.includes("CHANGES_REQUESTED") || normalized.includes("REQUESTED_CHANGES") || normalized.includes("PENDING");
+      })
+      .map((logbook) => String(logbook.studentId || ""))
+      .filter(Boolean)
+  );
 
   const departmentOverview = Array.from(uniqueDepartments).slice(0, 4).map((department) => {
     const departmentStudents = studentUsers.filter((student) => String(student.major || "").trim() === department);
@@ -792,24 +819,34 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
   return {
     stats: [
       {
-        title: "Total students on internship",
+        title: "Assigned Students",
         value: placedStudentIds.size,
-        description: `${studentUsers.length} student profiles detected`,
+        description: "Accepted or approved placements",
       },
       {
-        title: "Total departments",
-        value: uniqueDepartments.size,
-        description: `${departmentOverview.length} departments identified`,
+        title: "Active Internships",
+        value: activeInternships.length,
+        description: "Currently active placements",
       },
       {
-        title: "Total organisations",
-        value: uniqueOrganisations.size,
-        description: `${recruiterUsers.length} recruiter profiles identified`,
+        title: "Not Yet Placed",
+        value: Math.max(studentUsers.length - placedStudentIds.size, 0),
+        description: "Students without an approved placement",
       },
       {
-        title: "Total supervisors",
-        value: supervisorUsers.length,
-        description: `${activeInternships.length} active internship slots`,
+        title: "Pending Applications",
+        value: pendingApplications.length,
+        description: "Applications awaiting a decision",
+      },
+      {
+        title: "Logbooks Pending",
+        value: dueReports.length,
+        description: "Reports awaiting submission or review",
+      },
+      {
+        title: "Needs Attention",
+        value: attentionStudentIds.size,
+        description: "Students with logbook follow-up needed",
       },
     ],
     internshipStats: [
@@ -821,7 +858,7 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
       },
       {
         label: "Completed internships",
-        value: String(scopedApplications.filter((application) => normalizeOverviewStatus(String(application.status || "")).includes("ACCEPTED") || normalizeOverviewStatus(String(application.status || "")).includes("APPROVED")).length),
+        value: String(placedApplications.length),
         change: `${scopedApplications.length} total applications`,
         tone: "default",
       },
@@ -830,12 +867,6 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
         value: String(pendingApplications.length),
         change: "Awaiting follow-up",
         tone: "warning",
-      },
-      {
-        label: "Average placement satisfaction",
-        value: `${Math.max(0, Math.min(5, Number(((scopedApplications.length ? (scopedApplications.filter((application) => normalizeOverviewStatus(String(application.status || "")).includes("ACCEPTED") || normalizeOverviewStatus(String(application.status || "")).includes("APPROVED")).length / scopedApplications.length) : 0) * 5).toFixed(1))))}/5`,
-        change: "+0.2",
-        tone: "success",
       },
     ],
     departmentOverview,
@@ -854,11 +885,6 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
         title: "Report submissions due",
         count: dueReports.length,
         detail: "Students yet to submit or complete weekly reports",
-      },
-      {
-        title: "Placement agreement renewals",
-        count: 0,
-        detail: "No renewals detected from current records",
       },
     ],
     internshipReports,
@@ -1266,35 +1292,41 @@ export async function fetchDepartmentCoordinatorReportsData(): Promise<Departmen
 export interface FacultyCoordinatorDepartmentRow {
   name: string;
   students: number;
-  supervisors: number;
   activePlacements: number;
-  health: string;
+  notPlaced: number;
+  role?: string;
+  status?: string;
+  studentList: Array<{ id: string; name: string; placed: boolean }>;
 }
 
 export async function fetchFacultyCoordinatorDepartmentsData(): Promise<FacultyCoordinatorDepartmentRow[]> {
-  const [scopeFilters, affiliationsResult, usersResult, applicationsResult, internshipsResult] = await Promise.all([
-    getFacultyCoordinatorScopeFilters(),
-    supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
-    supabase.from(TABLES.USER).select("id, name, role, major").order("createdAt", { ascending: false }),
-    supabase
-      .from(TABLES.APPLICATION)
-      .select("id, studentId, internshipId, student:studentId(id, major, name)")
-      .order("createdAt", { ascending: false }),
-    supabase
-      .from(TABLES.INTERNSHIP)
-      .select("id, title, status, supervisorId")
-      .order("createdAt", { ascending: false }),
-  ]);
+  const [scopeFilters, affiliationsResult, usersResult, applicationsResult, assignmentsResult, departmentsResult, authData] =
+    await Promise.all([
+      getFacultyCoordinatorScopeFilters(),
+      supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
+      supabase.from(TABLES.USER).select("id, name, role, major").order("createdAt", { ascending: false }),
+      supabase
+        .from(TABLES.APPLICATION)
+        .select("id, studentId, internshipId, status, student:studentId(id, major, name)")
+        .order("createdAt", { ascending: false }),
+      supabase
+        .from(TABLES.COORDINATOR_ASSIGNMENT)
+        .select("id, coordinatorId, role, status, institutionId, facultyId, departmentId"),
+      supabase.from(TABLES.DEPARTMENT).select("id, name, institutionId, facultyId"),
+      supabase.auth.getUser(),
+    ]);
 
   throwIfError(affiliationsResult.error, "Failed to load affiliations for faculty departments");
   throwIfError(usersResult.error, "Failed to load users for faculty departments");
   throwIfError(applicationsResult.error, "Failed to load applications for faculty departments");
-  throwIfError(internshipsResult.error, "Failed to load internships for faculty departments");
+  throwIfError(assignmentsResult.error, "Failed to load coordinator assignments for faculty departments");
+  throwIfError(departmentsResult.error, "Failed to load departments for faculty departments");
 
   const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
   const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
-  const internships = (internshipsResult.data as Array<Record<string, unknown>> | null) || [];
   const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
+  const coordinatorAssignments = (assignmentsResult.data as Array<Record<string, unknown>> | null) || [];
+  const departments = (departmentsResult.data as Array<Record<string, unknown>> | null) || [];
 
   const allowedStudentIds = scopeFilters.hasSpecificScope
     ? new Set(
@@ -1311,84 +1343,115 @@ export async function fetchFacultyCoordinatorDepartmentsData(): Promise<FacultyC
   const scopedApplications = allowedStudentIds
     ? applications.filter((application) => allowedStudentIds.has(String(application.studentId || "")))
     : applications;
-  const allowedInternshipIds = new Set(
-    scopedApplications.map((application) => String(application.internshipId || "")).filter(Boolean)
+
+  const studentUsers = scopedStudents.filter((user) => normalizeOverviewStatus(String(user.role || "")).includes("STUDENT"));
+
+  const placedStudentIds = new Set(
+    scopedApplications
+      .filter((application) => {
+        const normalized = normalizeOverviewStatus(String(application.status || ""));
+        return normalized.includes("ACCEPTED") || normalized.includes("APPROVED");
+      })
+      .map((application) => String(application.studentId || ""))
+      .filter(Boolean)
   );
-  const scopedInternships = allowedStudentIds
-    ? internships.filter((internship) => allowedInternshipIds.has(String(internship.id || "")))
-    : internships;
 
-  const students = scopedStudents.filter((user) => normalizeOverviewStatus(String(user.role || "")).includes("STUDENT"));
-  const departments = new Map<string, FacultyCoordinatorDepartmentRow>();
+  const departmentNameById = new Map<string, string>(
+    departments
+      .map((department): [string, string] => [String(department.id || ""), String(department.name || "").trim()])
+      .filter(([id, name]) => Boolean(id) && Boolean(name))
+  );
 
-  for (const student of students) {
-    const dept = String(student.major || "Unassigned").trim();
-    const existing = departments.get(dept) || {
-      name: dept,
-      students: 0,
-      supervisors: 0,
-      activePlacements: 0,
-      health: "Stable",
-    };
-    existing.students += 1;
-    departments.set(dept, existing);
-  }
+  const currentUserId = authData?.user?.id;
+  const myAssignments = coordinatorAssignments.filter(
+    (assignment) =>
+      String(assignment.coordinatorId || "") === String(currentUserId || "") &&
+      String(assignment.status || "").toUpperCase() === "ACTIVE"
+  );
 
-  for (const internship of scopedInternships) {
-    if (normalizeOverviewStatus(String(internship.status || "")).includes("ACTIVE")) {
-      const dept = "Active placements";
-      const existing = departments.get(dept) || {
-        name: dept,
-        students: 0,
-        supervisors: 0,
-        activePlacements: 0,
-        health: "Stable",
-      };
-      existing.activePlacements += 1;
-      departments.set(dept, existing);
+  const assignmentByDepartment = new Map<string, { role: string; status: string }>();
+  let fallbackAssignment: { role: string; status: string } | null = null;
+
+  for (const assignment of myAssignments) {
+    const role = formatCoordinatorRole(String(assignment.role || ""));
+    const status = String(assignment.status || "").toUpperCase();
+    const departmentId = String(assignment.departmentId || "").trim();
+    const departmentName = departmentId ? departmentNameById.get(departmentId) : "";
+
+    if (departmentName) {
+      assignmentByDepartment.set(departmentName, { role, status });
+    } else if (role && !fallbackAssignment) {
+      fallbackAssignment = { role, status };
     }
   }
 
-  const mapped = Array.from(departments.values())
-    .filter((item) => item.name !== "Active placements")
-    .map((item) => {
-      const placements = scopedApplications.filter(
-        (application) => String((application.student as { major?: string | null } | null)?.major || "") === item.name
-      ).length;
-      const completion = item.students > 0 ? Math.min(Math.round((placements / item.students) * 100), 100) : 0;
-      return {
-        ...item,
-        activePlacements: placements,
-        supervisors: Math.max(1, Math.min(9, Math.round(placements / 2))),
-        health: completion >= 75 ? "Strong" : completion >= 55 ? "Stable" : "Needs attention",
-      };
-    });
+  const uniqueDepartments = Array.from(new Set(studentUsers.map((student) => String(student.major || "Unassigned").trim())));
 
-  return mapped.slice(0, 4);
+  return uniqueDepartments.slice(0, 4).map((name) => {
+    const departmentStudents = studentUsers.filter((student) => String(student.major || "Unassigned").trim() === name);
+    const activePlacements = departmentStudents.filter((student) => placedStudentIds.has(String(student.id || ""))).length;
+    const assignment = assignmentByDepartment.get(name) || fallbackAssignment;
+
+    return {
+      name,
+      students: departmentStudents.length,
+      activePlacements,
+      notPlaced: Math.max(departmentStudents.length - activePlacements, 0),
+      role: assignment?.role,
+      status: assignment?.status,
+      studentList: departmentStudents.map((student) => ({
+        id: String(student.id || ""),
+        name: String(student.name || "Student"),
+        placed: placedStudentIds.has(String(student.id || "")),
+      })),
+    };
+  });
 }
 
 export interface FacultyCoordinatorReportRow {
-  title: string;
-  type: string;
-  date: string;
+  id: string;
+  studentName: string;
+  department: string;
+  internshipTitle: string;
+  organisation: string;
+  weekNumber: number;
+  submittedAt: string;
   status: string;
+  tasksPerformed: string;
+  skillsLearned: string;
+  challengesFaced: string;
+  hoursWorked: number;
+  supervisorComment: string;
+  departmentCoordinator: string;
+  departmentCoordinatorId: string | null;
 }
 
-export async function fetchFacultyCoordinatorReportsData(): Promise<FacultyCoordinatorReportRow[]> {
-  const [scopeFilters, affiliationsResult, reportsResult] = await Promise.all([
+export interface FacultyCoordinatorReportsData {
+  awaitingAcceptance: FacultyCoordinatorReportRow[];
+  readyForDepartment: FacultyCoordinatorReportRow[];
+}
+
+export async function fetchFacultyCoordinatorReportsData(): Promise<FacultyCoordinatorReportsData> {
+  const [scopeFilters, affiliationsResult, reportsResult, applicationsResult, usersResult] = await Promise.all([
     getFacultyCoordinatorScopeFilters(),
     supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
     supabase
       .from(TABLES.LOGBOOK_REPORT)
-      .select("id, studentId, weekNumber, status, createdAt, student:studentId(name)")
+      .select("id, studentId, internshipId, weekNumber, status, tasksPerformed, skillsLearned, challengesFaced, hoursWorked, supervisorComment, createdAt, student:studentId(name, major), internship:internshipId(title, recruiter:recruiterId(company))")
       .order("createdAt", { ascending: false }),
+    supabase.from(TABLES.APPLICATION).select("studentId, internshipId, departmentCoordinatorId"),
+    supabase.from(TABLES.USER).select("id, name, role"),
   ]);
 
   throwIfError(affiliationsResult.error, "Failed to load affiliations for faculty reports");
   throwIfError(reportsResult.error, "Failed to load faculty reports");
+  throwIfError(applicationsResult.error, "Failed to load applications for faculty reports");
+  throwIfError(usersResult.error, "Failed to load users for faculty reports");
 
   const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
   const reports = (reportsResult.data as Array<Record<string, unknown>> | null) || [];
+  const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
+  const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
 
   const allowedStudentIds = scopeFilters.hasSpecificScope
     ? new Set(
@@ -1399,78 +1462,156 @@ export async function fetchFacultyCoordinatorReportsData(): Promise<FacultyCoord
       )
     : null;
 
-  const filteredReports = allowedStudentIds
-    ? reports.filter((report) => allowedStudentIds.has(String(report.studentId || "")))
-    : reports;
+  const filteredReports = reports.filter((report) => {
+    const inScope = !allowedStudentIds || allowedStudentIds.has(String(report.studentId || ""));
+    const status = normalizeOverviewStatus(String(report.status || ""));
+    return inScope && (status === "SUPERVISOR_APPROVED" || status === "APPROVED");
+  });
 
-  return filteredReports.slice(0, 4).map((report, index) => ({
-    title: `Week ${report.weekNumber ?? index + 1} internship progress report`,
-    type: "Faculty report",
-    date: formatOverviewDate(String(report.createdAt || "")),
-    status: report.status ? mapReportStatus(String(report.status)) : "Ready",
-  }));
+  const mapReport = (report: Record<string, unknown>): FacultyCoordinatorReportRow => {
+    const student = report.student as { name?: string | null; major?: string | null } | null;
+    const internship = report.internship as { title?: string | null; recruiter?: { company?: string | null } | null } | null;
+    const application = applications.find(
+      (item) => String(item.studentId || "") === String(report.studentId || "") && String(item.internshipId || "") === String(report.internshipId || "")
+    );
+    const departmentCoordinatorId = application?.departmentCoordinatorId ? String(application.departmentCoordinatorId) : null;
+    const coordinator = users.find((user) => String(user.id || "") === departmentCoordinatorId);
+
+    return {
+      id: String(report.id || ""),
+      studentName: String(student?.name || "Student"),
+      department: String(student?.major || "Unassigned"),
+      internshipTitle: String(internship?.title || "Internship"),
+      organisation: String(internship?.recruiter?.company || "Unassigned"),
+      weekNumber: Number(report.weekNumber || 1),
+      submittedAt: formatOverviewDate(String(report.createdAt || "")),
+      status: String(report.status || "SUPERVISOR_APPROVED"),
+      tasksPerformed: String(report.tasksPerformed || ""),
+      skillsLearned: String(report.skillsLearned || ""),
+      challengesFaced: String(report.challengesFaced || ""),
+      hoursWorked: Number(report.hoursWorked || 0),
+      supervisorComment: String(report.supervisorComment || ""),
+      departmentCoordinator: String(coordinator?.name || "Not assigned"),
+      departmentCoordinatorId,
+    };
+  };
+
+  return {
+    awaitingAcceptance: filteredReports
+      .filter((report) => normalizeOverviewStatus(String(report.status || "")) === "SUPERVISOR_APPROVED")
+      .map(mapReport),
+    readyForDepartment: filteredReports
+      .filter((report) => normalizeOverviewStatus(String(report.status || "")) === "APPROVED")
+      .map(mapReport),
+  };
+}
+
+export async function acceptFacultyCoordinatorReport(reportId: string): Promise<void> {
+  const { error } = await supabase
+    .from(TABLES.LOGBOOK_REPORT)
+    .update({ status: "APPROVED", updatedAt: new Date().toISOString() })
+    .eq("id", reportId)
+    .eq("status", "SUPERVISOR_APPROVED");
+  throwIfError(error, "Failed to accept the logbook report");
+}
+
+export async function sendFacultyCoordinatorReportToDepartment(reportId: string): Promise<void> {
+  const { error } = await supabase
+    .from(TABLES.LOGBOOK_REPORT)
+    .update({ status: "COMPLETED", updatedAt: new Date().toISOString() })
+    .eq("id", reportId)
+    .eq("status", "APPROVED");
+  throwIfError(error, "Failed to send the report to the department coordinator");
 }
 
 export interface FacultyCoordinatorPlacementRow {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  university: string;
+  department: string;
+  departmentCoordinator: string;
   organisation: string;
-  domain: string;
-  students: number;
+  internshipTitle: string;
+  companySupervisor: string;
   status: string;
+  dateAssigned: string;
+  applicationDate: string;
+  reportCount: number;
+  reason: string;
 }
 
 export async function fetchFacultyCoordinatorPlacementsData(): Promise<FacultyCoordinatorPlacementRow[]> {
-  const [scopeFilters, affiliationsResult, internshipsResult, applicationsResult] = await Promise.all([
-    getFacultyCoordinatorScopeFilters(),
-    supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
+  const { data: userData } = await supabase.auth.getUser();
+  const coordinatorId = userData?.user?.id;
+  if (!coordinatorId) return [];
+
+  const [assignmentsResult, usersResult, affiliationsResult, departmentsResult, applicationsResult, reportsResult] = await Promise.all([
     supabase
-      .from(TABLES.INTERNSHIP)
-      .select("id, title, status, type, location, recruiterId, recruiter:recruiterId(name, company)")
+      .from(TABLES.COORDINATOR_ASSIGNMENT)
+      .select("id, studentId, assignedById, status, role, institutionId, facultyId, departmentId, createdAt")
+      .eq("coordinatorId", coordinatorId)
       .order("createdAt", { ascending: false }),
-    supabase.from(TABLES.APPLICATION).select("id, internshipId, studentId").order("createdAt", { ascending: false }),
+    supabase.from(TABLES.USER).select("id, name, email, university, role, major"),
+    supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, departmentId"),
+    supabase.from(TABLES.DEPARTMENT).select("id, name"),
+    supabase
+      .from(TABLES.APPLICATION)
+      .select("id, studentId, status, createdAt, internship:internshipId(title, recruiter:recruiterId(company), supervisor:supervisorId(name))")
+      .order("createdAt", { ascending: false }),
+    supabase.from(TABLES.LOGBOOK_REPORT).select("studentId"),
   ]);
 
+  throwIfError(assignmentsResult.error, "Failed to load faculty coordinator assignments");
+  throwIfError(usersResult.error, "Failed to load users for faculty placements");
   throwIfError(affiliationsResult.error, "Failed to load affiliations for faculty placements");
-  throwIfError(internshipsResult.error, "Failed to load internships for faculty placements");
+  throwIfError(departmentsResult.error, "Failed to load departments for faculty placements");
   throwIfError(applicationsResult.error, "Failed to load applications for faculty placements");
+  throwIfError(reportsResult.error, "Failed to load reports for faculty placements");
 
+  const assignments = (assignmentsResult.data as Array<Record<string, unknown>> | null) || [];
+  const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
   const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
-  const internships = (internshipsResult.data as Array<Record<string, unknown>> | null) || [];
+  const departments = (departmentsResult.data as Array<Record<string, unknown>> | null) || [];
   const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
+  const reports = (reportsResult.data as Array<Record<string, unknown>> | null) || [];
+  const usersById = new Map(users.map((user) => [String(user.id || ""), user]));
+  const departmentById = new Map(departments.map((department) => [String(department.id || ""), String(department.name || "Unassigned")]));
+  const affiliationByStudentId = new Map(affiliations.map((affiliation) => [String(affiliation.studentId || ""), affiliation]));
 
-  const allowedStudentIds = scopeFilters.hasSpecificScope
-    ? new Set(
-        affiliations
-          .filter((affiliation) => studentMatchesFacultyCoordinatorScope(affiliation, scopeFilters))
-          .map((affiliation) => String(affiliation.studentId || ""))
-          .filter(Boolean)
-      )
-    : null;
+  return assignments
+    .filter((assignment) => String(assignment.studentId || "").trim())
+    .map((assignment) => {
+      const studentId = String(assignment.studentId);
+      const student = usersById.get(studentId);
+      const affiliation = affiliationByStudentId.get(studentId);
+      const departmentId = String(assignment.departmentId || affiliation?.departmentId || "");
+      const departmentCoordinator = users.find((user) => {
+        const role = normalizeOverviewStatus(String(user.role || ""));
+        return role.includes("DEPARTMENT") && String(user.id || "") === String(assignment.assignedById || "");
+      });
+      const application = applications.find((candidate) => String(candidate.studentId || "") === studentId);
+      const organisation = (application?.internship as { recruiter?: { company?: string | null } | null } | null)?.recruiter?.company;
 
-  const filteredApplications = allowedStudentIds
-    ? applications.filter((application) => allowedStudentIds.has(String(application.studentId || "")))
-    : applications;
-
-  const allowedInternshipIds = new Set(
-    filteredApplications.map((application) => String(application.internshipId || "")).filter(Boolean)
-  );
-
-  const filteredInternships = allowedStudentIds
-    ? internships.filter((internship) => allowedInternshipIds.has(String(internship.id || "")))
-    : internships;
-
-  const counts = new Map<string, number>();
-
-  for (const application of filteredApplications) {
-    const internshipId = String(application.internshipId || "");
-    counts.set(internshipId, (counts.get(internshipId) || 0) + 1);
-  }
-
-  return filteredInternships.slice(0, 4).map((internship) => ({
-    organisation: String((internship.recruiter as { company?: string | null } | null)?.company || "Company"),
-    domain: String(internship.type || internship.location || "Internship placement"),
-    students: counts.get(String(internship.id || "")) || 0,
-    status: normalizeOverviewStatus(String(internship.status || "")).includes("ACTIVE") ? "Active" : "Pending",
-  }));
+      return {
+        id: String(assignment.id || studentId),
+        studentId,
+        studentName: String(student?.name || "Student"),
+        studentEmail: String(student?.email || ""),
+        university: String(student?.university || "Unassigned"),
+        department: departmentById.get(departmentId) || String(student?.major || "Unassigned"),
+        departmentCoordinator: String(departmentCoordinator?.name || "Unassigned"),
+        organisation: String(organisation || "Not yet placed"),
+        internshipTitle: String((application?.internship as { title?: string | null } | null)?.title || "Not yet placed"),
+        companySupervisor: String((application?.internship as { supervisor?: { name?: string | null } | null } | null)?.supervisor?.name || "Unassigned"),
+        status: application ? placementStatusFromApplication(String(application.status || "")) : "Not yet placed",
+        dateAssigned: formatOverviewDate(String(assignment.createdAt || "")),
+        applicationDate: formatOverviewDate(String(application?.createdAt || "")),
+        reportCount: reports.filter((report) => String(report.studentId || "") === studentId).length,
+        reason: assignment.studentId ? "Direct student assignment" : "Department assignment",
+      };
+    });
 }
 
 export interface FacultyCoordinatorManagementRow {
@@ -1545,15 +1686,15 @@ export async function fetchFacultyCoordinatorManagementData(): Promise<FacultyCo
   assignments = await safeFetch(TABLES.COORDINATOR_ASSIGNMENT, "id, coordinatorId, role, status, institutionId, facultyId, departmentId");
 
   const institutionById = new Map<string, string>(
-    institutions.map((item) => [String(item.id || ""), String(item.name || "")]).filter(([id]) => Boolean(id))
+    institutions.map((item): [string, string] => [String(item.id || ""), String(item.name || "")]).filter(([id]) => Boolean(id))
   );
 
   const facultyById = new Map<string, string>(
-    faculties.map((item) => [String(item.id || ""), String(item.name || "")]).filter(([id]) => Boolean(id))
+    faculties.map((item): [string, string] => [String(item.id || ""), String(item.name || "")]).filter(([id]) => Boolean(id))
   );
 
   const departmentById = new Map<string, string>(
-    departments.map((item) => [String(item.id || ""), String(item.name || "")]).filter(([id]) => Boolean(id))
+    departments.map((item): [string, string] => [String(item.id || ""), String(item.name || "")]).filter(([id]) => Boolean(id))
   );
 
   const affiliationByStudentId = new Map<string, Record<string, unknown>>();

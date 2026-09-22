@@ -1,50 +1,36 @@
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { StatCard } from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Building2, BriefcaseBusiness, Users, ClipboardCheck, GraduationCap, TrendingUp, BellRing, FileText, MapPinned } from "lucide-react";
-
-const stats = [
-  { title: "Total students on internship", value: 324, icon: Users, description: "+18 this month" },
-  { title: "Total departments", value: 12, icon: Building2, description: "Across 4 faculties" },
-  { title: "Total organisations", value: 86, icon: BriefcaseBusiness, description: "22 new placements" },
-  { title: "Total supervisors", value: 41, icon: GraduationCap, description: "8 pending onboarding" },
-];
-
-const internshipStats = [
-  { label: "Active internship placements", value: "72%", change: "+5.4%", tone: "success" },
-  { label: "Completed internships", value: "138", change: "+12", tone: "default" },
-  { label: "Pending confirmations", value: "19", change: "-7 since last week", tone: "warning" },
-  { label: "Average placement satisfaction", value: "4.7/5", change: "+0.2", tone: "success" },
-];
-
-const departmentOverview = [
-  { name: "Computer Science", students: 86, placements: 24, completion: 78 },
-  { name: "Business Administration", students: 71, placements: 18, completion: 69 },
-  { name: "Engineering", students: 64, placements: 17, completion: 73 },
-  { name: "Communications", students: 39, placements: 11, completion: 65 },
-];
-
-const pendingActions = [
-  { title: "Supervisor onboarding approvals", count: 8, detail: "Awaiting confirmation for new supervisors" },
-  { title: "Organisation verification requests", count: 5, detail: "Needs review before student placements" },
-  { title: "Report submissions due", count: 14, detail: "Students yet to submit weekly reports" },
-  { title: "Placement agreement renewals", count: 3, detail: "Expiring in the next 10 days" },
-];
-
-const internshipReports = [
-  { student: "Maya Patel", department: "Computer Science", organisation: "Nexa Labs", status: "Approved", date: "12 Aug 2026" },
-  { student: "Daniel Okafor", department: "Engineering", organisation: "Atlas Grid", status: "Review", date: "10 Aug 2026" },
-  { student: "Aisha Bello", department: "Business Administration", organisation: "BluePeak", status: "Pending", date: "08 Aug 2026" },
-];
-
-const coordinatorManagement = [
-  { name: "Dr. Mercy James", role: "Faculty Coordinator", status: "Active", lastActive: "Today, 09:14" },
-  { name: "Mr. Daniel Smith", role: "Department Coordinator", status: "On leave", lastActive: "Yesterday" },
-  { name: "Prof. Grace Nwosu", role: "Program Lead", status: "Active", lastActive: "2 hours ago" },
-];
+import { Building2, Users, ClipboardCheck, TrendingUp, BellRing, RefreshCw, BriefcaseBusiness, UserRound, FileText, AlertTriangle } from "lucide-react";
+import { FacultyCoordinatorOverviewData, fetchFacultyCoordinatorOverviewData } from "@/services/supabase-api";
 
 export default function FacultyCoordinatorOverview() {
+  const [data, setData] = useState<FacultyCoordinatorOverviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await fetchFacultyCoordinatorOverviewData());
+    } catch (err) {
+      setError((err as { message?: string })?.message || "Unable to load the faculty overview.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadData(); }, [loadData]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">Loading faculty overview...</div>;
+  if (!data) return <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error || "Unable to load the faculty overview."}</div>;
+
+  const statIcons = [Users, BriefcaseBusiness, UserRound, ClipboardCheck, FileText, AlertTriangle];
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -52,12 +38,16 @@ export default function FacultyCoordinatorOverview() {
           <h2 className="text-2xl font-display font-bold">Faculty Coordinator Overview</h2>
           <p className="text-muted-foreground">Monitor internship performance, departments, and outstanding coordination tasks.</p>
         </div>
-        <Button className="w-fit">Generate report</Button>
+        <Button className="w-fit" variant="outline" onClick={() => void loadData()} disabled={loading}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh data
+        </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.title} title={stat.title} value={stat.value} icon={stat.icon} description={stat.description} />
+      {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {data.stats.map((stat, index) => (
+          <StatCard key={stat.title} title={stat.title} value={stat.value} icon={statIcons[index]} description={stat.description} />
         ))}
       </div>
 
@@ -70,7 +60,7 @@ export default function FacultyCoordinatorOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            {internshipStats.map((item) => (
+            {data.internshipStats.map((item) => (
               <div key={item.label} className="rounded-xl border bg-muted/20 p-4">
                 <p className="text-sm text-muted-foreground">{item.label}</p>
                 <div className="mt-2 flex items-end justify-between gap-2">
@@ -100,7 +90,7 @@ export default function FacultyCoordinatorOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pendingActions.map((action) => (
+            {data.pendingActions.map((action) => (
               <div key={action.title} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">{action.title}</span>
@@ -121,13 +111,15 @@ export default function FacultyCoordinatorOverview() {
                 <Building2 className="h-4 w-4" />
                 Department overview
               </span>
-              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                <Link to="/faculty-coordinator/departments">
                 View all
+                </Link>
               </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {departmentOverview.map((department) => (
+            {data.departmentOverview.map((department) => (
               <div key={department.name} className="space-y-2 rounded-xl border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{department.name}</span>
@@ -161,13 +153,15 @@ export default function FacultyCoordinatorOverview() {
                 <ClipboardCheck className="h-4 w-4" />
                 Internship reports
               </span>
-              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                <Link to="/faculty-coordinator/reports">
                 Open reports
+                </Link>
               </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {internshipReports.map((report) => (
+            {data.internshipReports.map((report) => (
               <div key={`${report.student}-${report.date}`} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -186,56 +180,13 @@ export default function FacultyCoordinatorOverview() {
                     {report.status}
                   </Badge>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>{report.date}</span>
-                  <button className="inline-flex items-center gap-1 text-primary">
-                    View <ArrowRight className="h-3 w-3" />
-                  </button>
-                </div>
+                <div className="mt-2 text-[11px] text-muted-foreground">{report.date}</div>
               </div>
             ))}
           </CardContent>
         </Card>
       </div>
 
-      <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Coordinator management
-            </span>
-            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
-              Manage team
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-3">
-            {coordinatorManagement.map((person) => (
-              <div key={person.name} className="rounded-xl border p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted font-medium text-sm">
-                    {person.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{person.name}</p>
-                    <p className="text-xs text-muted-foreground">{person.role}</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs">
-                  <Badge variant={person.status === "Active" ? "default" : "secondary"}>{person.status}</Badge>
-                  <span className="text-muted-foreground">{person.lastActive}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

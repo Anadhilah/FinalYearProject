@@ -63,8 +63,10 @@ import FacultyCoordinatorLayout from "./components/layouts/FacultyCoordinatorLay
 import FacultyCoordinatorOverview from "./pages/faculty-coordinator/Overview";
 import FacultyCoordinatorDepartments from "./pages/faculty-coordinator/Departments";
 import FacultyCoordinatorReports from "./pages/faculty-coordinator/Reports";
-import FacultyCoordinatorManagement from "./pages/faculty-coordinator/Management";
 import FacultyCoordinatorPlacements from "./pages/faculty-coordinator/Placements";
+import FacultyCoordinatorMessages from "./pages/faculty-coordinator/Messages";
+import FacultyCoordinatorStudents from "./pages/faculty-coordinator/Students";
+import FacultyCoordinatorStudentDetails from "./pages/faculty-coordinator/StudentDetails";
 import CoordinatorActivate from "./pages/coordinator/Activate";
 
 import DepartmentCoordinatorLayout from "./components/layouts/DepartmentCoordinatorLayout";
@@ -155,7 +157,9 @@ function App() {
               <Route index element={<FacultyCoordinatorOverview />} />
               <Route path="departments" element={<FacultyCoordinatorDepartments />} />
               <Route path="reports" element={<FacultyCoordinatorReports />} />
-              <Route path="management" element={<FacultyCoordinatorManagement />} />
+              <Route path="messages" element={<FacultyCoordinatorMessages />} />
+              <Route path="students" element={<FacultyCoordinatorStudents />} />
+              <Route path="students/:studentId" element={<FacultyCoordinatorStudentDetails />} />
               <Route path="placements" element={<FacultyCoordinatorPlacements />} />
             </Route>
 
