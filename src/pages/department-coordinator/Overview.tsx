@@ -1,43 +1,33 @@
+import { useCallback, useEffect, useState } from "react";
 import { StatCard } from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, BriefcaseBusiness, Building2, ClipboardCheck, AlertTriangle, CalendarClock, FileText, ArrowRight } from "lucide-react";
-
-const stats = [
-  { title: "Students in department", value: 86, icon: Users, description: "Across internship placements" },
-  { title: "Assigned supervisors", value: 9, icon: ClipboardCheck, description: "4 active reviews" },
-  { title: "Organisations hosting", value: 24, icon: Building2, description: "6 new this month" },
-  { title: "Students without placements", value: 11, icon: AlertTriangle, description: "Needs action" },
-];
-
-const studentPlacements = [
-  { student: "Maya Patel", company: "Nexa Labs", supervisor: "Dr. Adebayo", status: "On Track", endDate: "Oct 18, 2026" },
-  { student: "Daniel Okafor", company: "Atlas Grid", supervisor: "Prof. Harris", status: "At Risk", endDate: "Sep 30, 2026" },
-  { student: "Aisha Bello", company: "BluePeak", supervisor: "Dr. Mensah", status: "Needs Review", endDate: "Nov 02, 2026" },
-  { student: "Joseph Mensah", company: "Unassigned", supervisor: "—", status: "No Placement", endDate: "—" },
-];
-
-const endingSoon = [
-  { student: "Daniel Okafor", company: "Atlas Grid", daysLeft: 8 },
-  { student: "Aisha Bello", company: "BluePeak", daysLeft: 15 },
-  { student: "Maya Patel", company: "Nexa Labs", daysLeft: 22 },
-];
-
-const supervisorReports = [
-  { supervisor: "Dr. Adebayo", topic: "Student attendance and weekly logbook review", date: "12 Aug 2026" },
-  { supervisor: "Prof. Harris", topic: "Performance risk and placement concerns", date: "10 Aug 2026" },
-  { supervisor: "Dr. Mensah", topic: "Progress update for three students", date: "08 Aug 2026" },
-];
-
-const organisations = [
-  { name: "Nexa Labs", students: 12, sectors: "Software Engineering" },
-  { name: "Atlas Grid", students: 7, sectors: "Energy Systems" },
-  { name: "BluePeak", students: 5, sectors: "Marketing & Strategy" },
-  { name: "Harbor Logistics", students: 4, sectors: "Operations" },
-];
+import { Users, Building2, ClipboardCheck, AlertTriangle, CalendarClock, FileText, ArrowRight, UserRound, RefreshCw } from "lucide-react";
+import { fetchDepartmentCoordinatorOverviewData, DepartmentCoordinatorOverviewData } from "@/services/supabase-api";
 
 export default function DepartmentCoordinatorOverview() {
+  const [data, setData] = useState<DepartmentCoordinatorOverviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await fetchDepartmentCoordinatorOverviewData());
+    } catch (err) {
+      setError((err as { message?: string })?.message || "Unable to load the department overview.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadData(); }, [loadData]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">Loading department overview...</div>;
+  if (!data) return <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error || "Unable to load the department overview."}</div>;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -45,12 +35,16 @@ export default function DepartmentCoordinatorOverview() {
           <h2 className="text-2xl font-display font-bold">Department Coordinator Overview</h2>
           <p className="text-muted-foreground">Track student placement progress, supervisor feedback, and department-level internship health.</p>
         </div>
-        <Button className="w-fit">Export summary</Button>
+        <Button className="w-fit" variant="outline" onClick={() => void loadData()} disabled={loading}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh data
+        </Button>
       </div>
 
+      {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.title} title={stat.title} value={stat.value} icon={stat.icon} description={stat.description} />
+        {data.stats.map((stat, index) => (
+          <StatCard key={stat.title} title={stat.title} value={stat.value} icon={[Users, ClipboardCheck, Building2, AlertTriangle][index]} description={stat.description} />
         ))}
       </div>
 
@@ -79,7 +73,7 @@ export default function DepartmentCoordinatorOverview() {
                 </tr>
               </thead>
               <tbody>
-                {studentPlacements.map((student) => (
+                {data.studentPlacements.map((student) => (
                   <tr key={student.student} className="border-b last:border-b-0">
                     <td className="py-3 pr-4 font-medium">{student.student}</td>
                     <td className="py-3 pr-4">{student.company}</td>
@@ -102,6 +96,7 @@ export default function DepartmentCoordinatorOverview() {
                     <td className="py-3">{student.endDate}</td>
                   </tr>
                 ))}
+                {data.studentPlacements.length === 0 && <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">No student placement records found.</td></tr>}
               </tbody>
             </table>
           </CardContent>
@@ -115,7 +110,7 @@ export default function DepartmentCoordinatorOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {endingSoon.map((student) => (
+            {data.endingSoon.map((student) => (
               <div key={student.student} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">{student.student}</span>
@@ -124,6 +119,7 @@ export default function DepartmentCoordinatorOverview() {
                 <p className="mt-1 text-xs text-muted-foreground">{student.company}</p>
               </div>
             ))}
+            {data.endingSoon.length === 0 && <p className="text-sm text-muted-foreground">No internships are ending in the next 30 days.</p>}
           </CardContent>
         </Card>
       </div>
@@ -137,7 +133,7 @@ export default function DepartmentCoordinatorOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {supervisorReports.map((report) => (
+            {data.supervisorReports.map((report) => (
               <div key={`${report.supervisor}-${report.date}`} className="rounded-lg border p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -151,6 +147,22 @@ export default function DepartmentCoordinatorOverview() {
                 <p className="mt-2 text-[11px] text-muted-foreground">{report.date}</p>
               </div>
             ))}
+            {data.supervisorReports.length === 0 && <p className="text-sm text-muted-foreground">No recent supervisor activity found.</p>}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2"><UserRound className="h-4 w-4" /> Faculty coordinators</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.facultyCoordinators.map((coordinator) => (
+              <div key={coordinator.name} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                <div><p className="text-sm font-medium">{coordinator.name}</p><p className="text-xs text-muted-foreground">Supporting {coordinator.students} students</p></div>
+                <Badge>{coordinator.status}</Badge>
+              </div>
+            ))}
+            {data.facultyCoordinators.length === 0 && <p className="text-sm text-muted-foreground">No active faculty coordinators are assigned to this department.</p>}
           </CardContent>
         </Card>
 
@@ -162,7 +174,7 @@ export default function DepartmentCoordinatorOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {organisations.map((organisation) => (
+            {data.organisations.map((organisation) => (
               <div key={organisation.name} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-sm">{organisation.name}</span>
@@ -171,6 +183,7 @@ export default function DepartmentCoordinatorOverview() {
                 <p className="mt-1 text-xs text-muted-foreground">{organisation.sectors}</p>
               </div>
             ))}
+            {data.organisations.length === 0 && <p className="text-sm text-muted-foreground">No hosting organisations found.</p>}
           </CardContent>
         </Card>
       </div>

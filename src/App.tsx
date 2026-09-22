@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
+import ChangePassword from "./pages/ChangePassword";
 
 import StudentLayout from "./components/layouts/StudentLayout";
 import StudentOnboarding from "./pages/student/Onboarding";
@@ -20,6 +21,7 @@ import StudentOverview from "./pages/student/Overview";
 import StudentProfile from "./pages/student/Profile";
 import BrowseInternships from "./pages/student/BrowseInternships";
 import InternshipDetails from "./pages/student/InternshipDetails";
+import Apply from "./pages/student/Apply";
 import MyApplications from "./pages/student/MyApplications";
 import StudentMessages from "./pages/student/Messages";
 import StudentLogbook from "./pages/student/Logbook";
@@ -63,13 +65,17 @@ import FacultyCoordinatorDepartments from "./pages/faculty-coordinator/Departmen
 import FacultyCoordinatorReports from "./pages/faculty-coordinator/Reports";
 import FacultyCoordinatorManagement from "./pages/faculty-coordinator/Management";
 import FacultyCoordinatorPlacements from "./pages/faculty-coordinator/Placements";
+import CoordinatorActivate from "./pages/coordinator/Activate";
 
 import DepartmentCoordinatorLayout from "./components/layouts/DepartmentCoordinatorLayout";
 import DepartmentCoordinatorOverview from "./pages/department-coordinator/Overview";
+import DepartmentCoordinatorApplications from "./pages/department-coordinator/Applications";
 import DepartmentCoordinatorStudents from "./pages/department-coordinator/Students";
 import DepartmentCoordinatorOrganisations from "./pages/department-coordinator/Organisations";
 import DepartmentCoordinatorReports from "./pages/department-coordinator/Reports";
 import DepartmentCoordinatorPlacements from "./pages/department-coordinator/Placements";
+import DepartmentCoordinatorFacultyCoordinators from "./pages/department-coordinator/FacultyCoordinators";
+import DepartmentCoordinatorOnboarding from "./pages/department-coordinator/Onboarding";
 
 
 const queryClient = new QueryClient();
@@ -93,8 +99,10 @@ function App() {
             <Route path="/recruiter/onboarding" element={<RecruiterOnboarding />} />
             <Route path="/recruiter/pending" element={<PendingApproval />} />
             <Route path="/install" element={<Install />} />
+            <Route path="/change-password" element={<ProtectedRoute allowedRoles={["student", "recruiter", "admin", "supervisor", "faculty-coordinator", "department-coordinator"]}><ChangePassword /></ProtectedRoute>} />
             <Route path="/logbook/share/:token" element={<SharedLogbook />} />
             <Route path="/supervisor/activate/:token" element={<SupervisorActivate />} />
+            <Route path="/coordinator/activate/:token" element={<CoordinatorActivate />} />
 
             {/* Student Routes */}
             <Route path="/student/onboarding" element={<ProtectedRoute allowedRoles={["student"]}><StudentOnboarding /></ProtectedRoute>} />
@@ -103,6 +111,7 @@ function App() {
               <Route path="profile" element={<StudentProfile />} />
               <Route path="internships" element={<BrowseInternships />} />
               <Route path="internships/:id" element={<InternshipDetails />} />
+              <Route path="internships/:id/apply" element={<Apply />} />
               <Route path="applications" element={<MyApplications />} />
               <Route path="messages" element={<StudentMessages />} />
               <Route path="meetings" element={<StudentMeetings />} />
@@ -142,7 +151,7 @@ function App() {
             </Route>
 
             {/* Faculty Coordinator Routes */}
-            <Route path="/faculty-coordinator" element={<FacultyCoordinatorLayout />}>
+            <Route path="/faculty-coordinator" element={<ProtectedRoute allowedRoles={["faculty-coordinator"]}><FacultyCoordinatorLayout /></ProtectedRoute>}>
               <Route index element={<FacultyCoordinatorOverview />} />
               <Route path="departments" element={<FacultyCoordinatorDepartments />} />
               <Route path="reports" element={<FacultyCoordinatorReports />} />
@@ -151,9 +160,12 @@ function App() {
             </Route>
 
             {/* Department Coordinator Routes */}
-            <Route path="/department-coordinator" element={<DepartmentCoordinatorLayout />}>
+            <Route path="/department-coordinator/onboarding" element={<ProtectedRoute allowedRoles={["department-coordinator"]}><DepartmentCoordinatorOnboarding /></ProtectedRoute>} />
+            <Route path="/department-coordinator" element={<ProtectedRoute allowedRoles={["department-coordinator"]}><DepartmentCoordinatorLayout /></ProtectedRoute>}>
               <Route index element={<DepartmentCoordinatorOverview />} />
+              <Route path="internship-approval" element={<DepartmentCoordinatorApplications />} />
               <Route path="students" element={<DepartmentCoordinatorStudents />} />
+              <Route path="faculty-coordinators" element={<DepartmentCoordinatorFacultyCoordinators />} />
               <Route path="organisations" element={<DepartmentCoordinatorOrganisations />} />
               <Route path="reports" element={<DepartmentCoordinatorReports />} />
               <Route path="placements" element={<DepartmentCoordinatorPlacements />} />

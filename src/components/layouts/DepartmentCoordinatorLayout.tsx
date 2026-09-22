@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Users, Building2, FileText, BriefcaseBusiness, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, Building2, FileText, BriefcaseBusiness, ClipboardCheck, UserPlus, LogOut, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,8 @@ import { useState } from "react";
 const navItems = [
   { label: "Overview", path: "/department-coordinator", icon: LayoutDashboard },
   { label: "Students", path: "/department-coordinator/students", icon: Users },
+  { label: "Faculty Coordinators", path: "/department-coordinator/faculty-coordinators", icon: UserPlus },
+  { label: "Internship approval", path: "/department-coordinator/internship-approval", icon: ClipboardCheck },
   { label: "Organisations", path: "/department-coordinator/organisations", icon: Building2 },
   { label: "Reports", path: "/department-coordinator/reports", icon: FileText },
   { label: "Placements", path: "/department-coordinator/placements", icon: BriefcaseBusiness },

@@ -6,12 +6,14 @@ import { UserRole } from "@/contexts/AuthContext";
  * Falls back to the landing page for unknown roles.
  */
 export function getRoleDashboardPath(role: string | UserRole | null | undefined): string {
-  switch ((role ?? "").toLowerCase()) {
+  switch ((role ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-").replace(/-+/g, "-")) {
     case "student":
       return "/student";
     case "recruiter":
       return "/recruiter";
     case "supervisor":
+    case "company-supervisor":
+    case "company-internship-supervisor":
       return "/supervisor";
     case "admin":
       return "/admin";

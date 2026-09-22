@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Building2, FileText, Users, LogOut, Menu, X, BriefcaseBusiness } from "lucide-react";
+import { LayoutDashboard, Building2, FileText, Users, LogOut, Menu, X, BriefcaseBusiness, KeyRound } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ const navItems = [
   { label: "Reports", path: "/faculty-coordinator/reports", icon: FileText },
   { label: "Management", path: "/faculty-coordinator/management", icon: Users },
   { label: "Placements", path: "/faculty-coordinator/placements", icon: BriefcaseBusiness },
+  { label: "Change password", path: "/change-password", icon: KeyRound },
 ];
 
 export default function FacultyCoordinatorLayout() {

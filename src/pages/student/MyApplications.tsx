@@ -6,11 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useEffect, useState } from "react";
 import { apiAuthenticationServiceGet } from "@/services/auth";
 
-type AppStatus = "pending" | "accepted" | "rejected" | "reviewing";
+type AppStatus = "pending" | "accepted" | "rejected" | "reviewing" | "department_review";
 
-function toAppStatus(status: string | undefined): AppStatus {
+function toAppStatus(status: string | undefined, departmentApprovalRequired = false): AppStatus {
+  if (departmentApprovalRequired) return "department_review";
   const lower = (status || 'pending').toLowerCase();
-  const validStatuses: string[] = ['accepted', 'rejected', 'reviewing'];
+  const validStatuses: string[] = ['accepted', 'rejected', 'reviewing', 'department_review'];
   return validStatuses.includes(lower) ? (lower as AppStatus) : 'pending';
 }
 
@@ -18,6 +19,7 @@ type ApplicationItem = {
   id: string;
   internshipId: string;
   status: string;
+  departmentApprovalRequired?: boolean;
   createdAt?: string;
   coverLetter?: string | null;
   resumeUrl?: string | null;
@@ -103,7 +105,7 @@ export default function MyApplications() {
                     <TableCell className="font-medium">{app.internship?.title || app.internshipId}</TableCell>
                     <TableCell>{app.internship?.recruiter?.company || app.internship?.recruiter?.name || "—"}</TableCell>
                     <TableCell className="hidden sm:table-cell">{app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "—"}</TableCell>
-                    <TableCell><StatusBadge status={toAppStatus(app.status)} /></TableCell>
+                    <TableCell><StatusBadge status={toAppStatus(app.status, app.departmentApprovalRequired)} /></TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => viewDetails(app)}>View</Button>
                     </TableCell>
@@ -129,7 +131,7 @@ export default function MyApplications() {
               <div className="space-y-3 py-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Status</span>
-                  <StatusBadge status={toAppStatus(selected.status)} />
+                  <StatusBadge status={toAppStatus(selected.status, selected.departmentApprovalRequired)} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Applied</span>

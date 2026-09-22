@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface LogoutButtonProps extends ButtonProps {
   children?: ReactNode;
@@ -22,11 +23,18 @@ interface LogoutButtonProps extends ButtonProps {
 export function LogoutButton({ children = "Logout", onCompleted, ...buttonProps }: LogoutButtonProps) {
   const { logout } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleConfirm = async () => {
-    await logout();
-    toast({ title: "Logged out successfully" });
-    onCompleted?.();
+    try {
+      await logout();
+      toast({ title: "Logged out successfully" });
+      onCompleted?.();
+    } catch {
+      toast({ title: "Logged out locally", description: "Your session could not be fully closed with the server.", variant: "destructive" });
+    } finally {
+      navigate("/login", { replace: true });
+    }
   };
 
   return (

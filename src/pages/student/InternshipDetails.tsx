@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ type InternshipDetailsType = {
 
 export default function InternshipDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [internship, setInternship] = useState<InternshipDetailsType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +92,7 @@ export default function InternshipDetails() {
       const uploadRes = await apiAuthenticationServicePost("/upload/resume", formData);
       const resumePath = uploadRes.data.path;
 
-      await apiAuthenticationServicePost("/applications-list", {
+      const applicationResponse = await apiAuthenticationServicePost("/applications-list", {
         internshipId: internship.id,
         coverLetter,
         resumeUrl: resumePath,
@@ -99,7 +100,13 @@ export default function InternshipDetails() {
 
       setSubmitted(true);
       setAlreadyApplied(true);
-      toast({ title: "Application submitted", description: "Your application has been sent successfully." });
+      const requiresDepartmentApproval = applicationResponse.data?.departmentApprovalRequired === true;
+      toast({
+        title: requiresDepartmentApproval ? "Application sent for department approval" : "Application submitted",
+        description: requiresDepartmentApproval
+          ? "Your department coordinator must approve this application before the organisation can receive it."
+          : "Your application has been sent successfully.",
+      });
     } catch (err) {
       const msg =
         (err as { message?: string })?.message ||
@@ -154,7 +161,7 @@ export default function InternshipDetails() {
           You already applied for this internship. You can view the status in your applications list.
         </div>
       ) : (
-        <Button size="lg" onClick={() => setApplyOpen(true)}>Apply Now</Button>
+        <Button size="lg" onClick={() => navigate(`/student/internships/${id}/apply`)}>Apply Now</Button>
       )}
 
       {/* Apply Dialog */}

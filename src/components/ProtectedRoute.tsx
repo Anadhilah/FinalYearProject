@@ -43,6 +43,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (!user || !normalizedAllowedRoles.includes(normalizedUserRole)) return <Navigate to="/" replace />;
 
+  if (user.mustChangePassword && location.pathname !== "/change-password") {
+    return <Navigate to="/change-password" replace />;
+  }
+
   // Additional check: recruiters must finish onboarding and be approved
   if (user.role === 'recruiter') {
     const status = user.recruiterStatus?.toLowerCase();
@@ -68,6 +72,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       return <Navigate to="/department-coordinator/onboarding" replace />;
     }
     if (coordinatorStatus !== 'ACTIVE') {
+      return <Navigate to="/" replace />;
+    }
+  }
+
+  if (user.role === 'faculty-coordinator') {
+    const coordinatorStatus = (user.coordinatorStatus ?? '').toUpperCase();
+    if (coordinatorStatus !== 'ACTIVE' || user.isApproved !== true) {
       return <Navigate to="/" replace />;
     }
   }

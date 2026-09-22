@@ -41,8 +41,10 @@ export async function getSignedFileUrl(path: string, expiresIn = 3600): Promise<
 
 /** Uploads a file to Supabase Storage and returns the stored path. */
 export async function uploadFile(file: File, folder = STORAGE.FOLDER): Promise<string> {
-  const ext = file.name.split(".").pop() || "bin";
-  const path = `${folder}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const { data: user } = await supabase.auth.getUser();
+  const owner = user?.user?.id || "anonymous";
+  const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${folder}/${owner}/${Date.now()}-${sanitized}`;
   const { error } = await supabase.storage.from(STORAGE.BUCKET).upload(path, file, {
     cacheControl: "3600",
     contentType: file.type || "application/octet-stream",
@@ -68,6 +70,10 @@ export interface Internship {
   requirements?: string | null;
   tags?: string[] | null;
   status?: string | null;
+  applicationDeadline?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  applicationQuestions?: string[] | null;
   viewCount?: number | null;
   createdAt?: string | null;
   recruiter?: { name?: string | null; company?: string | null } | null;
@@ -141,6 +147,10 @@ const INTERNSHIP_INSERT_COLUMNS = [
   "stipend",
   "requirements",
   "status",
+  "applicationDeadline",
+  "startDate",
+  "endDate",
+  "applicationQuestions",
 ] as const;
 
 /** Creates a new internship. */
@@ -190,14 +200,33 @@ export interface Application {
   status?: string | null;
   coverLetter?: string | null;
   resumeUrl?: string | null;
+  coverLetterUrl?: string | null;
+  coordinatorSupportRequested?: boolean | null;
+  departmentReviewStatus?: string | null;
+  skills?: string[] | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  questionAnswers?: Array<{ question: string; answer: string }> | null;
   createdAt?: string | null;
   internship?: {
     id?: string;
     title?: string | null;
+    description?: string | null;
     location?: string | null;
+    applicationDeadline?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
     recruiter?: { name?: string | null; company?: string | null } | null;
   } | null;
-  student?: { id?: string; name?: string | null; email?: string | null } | null;
+  student?: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+    phoneNumber?: string | null;
+    university?: string | null;
+    major?: string | null;
+    cvUrl?: string | null;
+  } | null;
 }
 
 /** Fetches applications for the current user (student or recruiter). */
@@ -215,7 +244,7 @@ export async function fetchMyApplications(): Promise<Application[]> {
   let query = supabase
     .from(TABLES.APPLICATION)
     .select(
-      "*, internship:internshipId(id, title, location, recruiter:recruiterId(name, company)), student:studentId(id, name, email)"
+      "*, internship:internshipId(id, title, location, description, applicationDeadline, startDate, endDate, recruiter:recruiterId(name, company)), student:studentId(id, name, email, phoneNumber, university, major, cvUrl)"
     )
     .order("createdAt", { ascending: false });
 
@@ -272,6 +301,9 @@ export interface DepartmentCoordinatorOverviewData {
     submittedBy: string;
     status: string;
   }>;
+  endingSoon: Array<{ student: string; company: string; daysLeft: number }>;
+  supervisorReports: Array<{ supervisor: string; topic: string; date: string }>;
+  facultyCoordinators: Array<{ name: string; students: number; status: string }>;
   organisations: Array<{
     name: string;
     students: number;
@@ -279,13 +311,38 @@ export interface DepartmentCoordinatorOverviewData {
   }>;
 }
 
+async function getDepartmentCoordinatorScopeFilters(): Promise<CoordinatorScopeFilters> {
+  const { data: authData } = await supabase.auth.getUser();
+  const userId = authData?.user?.id;
+  if (!userId) {
+    return { hasSpecificScope: false, institutionIds: new Set(), facultyIds: new Set(), departmentIds: new Set() };
+  }
+
+  const { data, error } = await supabase
+    .from(TABLES.USER)
+    .select("institutionId, facultyId, departmentId")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!error && data) {
+    const institutionIds = new Set([String(data.institutionId || "")].filter(Boolean));
+    const facultyIds = new Set([String(data.facultyId || "")].filter(Boolean));
+    const departmentIds = new Set([String(data.departmentId || "")].filter(Boolean));
+    if (institutionIds.size || facultyIds.size || departmentIds.size) {
+      return { hasSpecificScope: true, institutionIds, facultyIds, departmentIds };
+    }
+  }
+
+  return getFacultyCoordinatorScopeFilters();
+}
+
 export async function fetchDepartmentCoordinatorOverviewData(): Promise<DepartmentCoordinatorOverviewData> {
-  const [scopeFilters, affiliationsResult, usersResult, internshipsResult, applicationsResult] = await Promise.all([
-    getFacultyCoordinatorScopeFilters(),
-    supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
+  const [scopeFilters, affiliationsResult, usersResult, internshipsResult, applicationsResult, assignmentsResult] = await Promise.all([
+    getDepartmentCoordinatorScopeFilters(),
+    supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId, endDate"),
     supabase
       .from(TABLES.USER)
-      .select("id, name, role, major, university, company, isApproved")
+      .select("id, name, role, major, university, company, isApproved, institutionId, facultyId, departmentId")
       .order("createdAt", { ascending: false }),
     supabase
       .from(TABLES.INTERNSHIP)
@@ -297,17 +354,23 @@ export async function fetchDepartmentCoordinatorOverviewData(): Promise<Departme
         "id, studentId, internshipId, status, createdAt, student:studentId(id, name, email, major, university), internship:internshipId(id, title, location, type, recruiter:recruiterId(name, company), supervisor:supervisorId(name))"
       )
       .order("createdAt", { ascending: false }),
+    supabase
+      .from(TABLES.COORDINATOR_ASSIGNMENT)
+      .select("id, coordinatorId, role, status, institutionId, facultyId, departmentId, createdAt")
+      .order("createdAt", { ascending: false }),
   ]);
 
   throwIfError(affiliationsResult.error, "Failed to load affiliations for department overview");
   throwIfError(usersResult.error, "Failed to load users for department overview");
   throwIfError(internshipsResult.error, "Failed to load internships for department overview");
   throwIfError(applicationsResult.error, "Failed to load applications for department overview");
+  throwIfError(assignmentsResult.error, "Failed to load faculty coordinator assignments for department overview");
 
   const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
   const internships = (internshipsResult.data as Array<Record<string, unknown>> | null) || [];
   const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
   const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
+  const assignments = (assignmentsResult.data as Array<Record<string, unknown>> | null) || [];
 
   const allowedStudentIds = scopeFilters.hasSpecificScope
     ? new Set(
@@ -322,6 +385,11 @@ export async function fetchDepartmentCoordinatorOverviewData(): Promise<Departme
   const scopedApplications = allowedStudentIds
     ? applications.filter((application) => allowedStudentIds.has(String(application.studentId || "")))
     : applications;
+  const scopedAssignments = assignments.filter(
+    (assignment) => String(assignment.role || "").toUpperCase().includes("FACULTY") &&
+      String(assignment.status || "").toUpperCase() === "ACTIVE" &&
+      assignmentMatchesCoordinatorScope(assignment, scopeFilters)
+  );
   const allowedInternshipIds = new Set(
     scopedApplications.map((application) => String(application.internshipId || "")).filter(Boolean)
   );
@@ -390,6 +458,51 @@ export async function fetchDepartmentCoordinatorOverviewData(): Promise<Departme
       ),
     }));
 
+  const endDatesByStudentId = new Map(
+    affiliations
+      .filter((affiliation) => !allowedStudentIds || allowedStudentIds.has(String(affiliation.studentId || "")))
+      .map((affiliation) => [String(affiliation.studentId || ""), String(affiliation.endDate || "")])
+      .filter(([studentId, endDate]) => Boolean(studentId && endDate))
+  );
+  const studentNamesById = new Map(studentUsers.map((student) => [String(student.id || ""), String(student.name || "Student")]));
+  const internshipById = new Map(scopedInternships.map((internship) => [String(internship.id || ""), internship]));
+  const endingSoon = scopedApplications
+    .map((application) => {
+      const endDate = endDatesByStudentId.get(String(application.studentId || ""));
+      const daysLeft = endDate ? Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000) : null;
+      const internship = internshipById.get(String(application.internshipId || ""));
+      return daysLeft !== null && daysLeft >= 0 && daysLeft <= 30
+        ? {
+            student: studentNamesById.get(String(application.studentId || "")) || "Student",
+            company: String((internship?.recruiter as { company?: string | null } | null)?.company || "Company"),
+            daysLeft,
+          }
+        : null;
+    })
+    .filter((item): item is { student: string; company: string; daysLeft: number } => Boolean(item))
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+    .slice(0, 4);
+
+  const supervisorReports = recentApplications.map((application) => ({
+    supervisor: String((application.internship as { supervisor?: { name?: string | null } | null } | null)?.supervisor?.name || "Supervisor not assigned"),
+    topic: `Placement activity for ${String((application.student as { name?: string | null } | null)?.name || "Student")}`,
+    date: formatOverviewDate(String(application.createdAt || "")),
+  }));
+
+  const facultyCoordinators = scopedAssignments.map((assignment) => ({
+    name: String(users.find((user) => String(user.id || "") === String(assignment.coordinatorId || ""))?.name || "Faculty Coordinator"),
+    students: affiliations.filter((affiliation) => {
+      if (allowedStudentIds && !allowedStudentIds.has(String(affiliation.studentId || ""))) return false;
+      return assignmentMatchesCoordinatorScope(assignment, {
+        hasSpecificScope: Boolean(assignment.institutionId || assignment.facultyId || assignment.departmentId),
+        institutionIds: new Set([String(assignment.institutionId || "")].filter(Boolean)),
+        facultyIds: new Set([String(assignment.facultyId || "")].filter(Boolean)),
+        departmentIds: new Set([String(assignment.departmentId || "")].filter(Boolean)),
+      });
+    }).length,
+    status: String(assignment.status || "ACTIVE"),
+  }));
+
   return {
     stats: [
       {
@@ -415,6 +528,9 @@ export async function fetchDepartmentCoordinatorOverviewData(): Promise<Departme
     ],
     studentPlacements,
     pendingApprovals,
+    endingSoon,
+    supervisorReports,
+    facultyCoordinators,
     organisations,
   };
 }
@@ -752,38 +868,66 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
 }
 
 export interface DepartmentCoordinatorStudentRow {
+  id: string;
+  internshipId?: string;
   name: string;
+  email?: string | null;
   internship: string;
   status: string;
   placement: string;
+  facultyCoordinatorId?: string | null;
+  facultyCoordinator: string;
 }
 
-export async function fetchDepartmentCoordinatorStudentsData(): Promise<DepartmentCoordinatorStudentRow[]> {
-  const [scopeFilters, affiliationsResult, usersResult, applicationsResult, internshipsResult] = await Promise.all([
-    getFacultyCoordinatorScopeFilters(),
+export interface DepartmentCoordinatorFacultyCoordinatorOption {
+  id: string;
+  name: string;
+  email?: string | null;
+}
+
+export async function fetchDepartmentCoordinatorStudentsData(): Promise<{
+  students: DepartmentCoordinatorStudentRow[];
+  facultyCoordinators: DepartmentCoordinatorFacultyCoordinatorOption[];
+}> {
+  const [scopeFilters, affiliationsResult, usersResult, applicationsResult, internshipsResult, coordinatorsResult, assignmentsResult] = await Promise.all([
+    getDepartmentCoordinatorScopeFilters(),
     supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
-    supabase.from(TABLES.USER).select("id, name, role").order("createdAt", { ascending: false }),
+    supabase.from(TABLES.USER).select("id, name, email, role").order("createdAt", { ascending: false }),
     supabase
       .from(TABLES.APPLICATION)
       .select(
-        "id, studentId, internshipId, status, createdAt, student:studentId(id, name), internship:internshipId(id, title, recruiter:recruiterId(name, company))"
+        "id, studentId, internshipId, status, departmentApprovalRequired, createdAt, student:studentId(id, name), internship:internshipId(id, title, recruiter:recruiterId(name, company), supervisor:supervisorId(id, name))"
       )
       .order("createdAt", { ascending: false }),
     supabase
       .from(TABLES.INTERNSHIP)
-      .select("id, title, status, recruiterId, recruiter:recruiterId(name, company)")
+      .select("id, title, status, recruiterId, supervisorId, recruiter:recruiterId(name, company), supervisor:supervisorId(id, name)")
       .order("createdAt", { ascending: false }),
+    supabase.from(TABLES.USER).select("id, name, email, role").eq("role", "FACULTY_COORDINATOR").order("name", { ascending: true }),
+    supabase.from(TABLES.COORDINATOR_ASSIGNMENT).select("id, studentId, coordinatorId, role, status, institutionId, facultyId, departmentId").eq("role", "Faculty Coordinator").order("createdAt", { ascending: false }),
   ]);
 
   throwIfError(affiliationsResult.error, "Failed to load affiliations for department students");
   throwIfError(usersResult.error, "Failed to load students for department coordinator");
   throwIfError(applicationsResult.error, "Failed to load applications for department coordinator");
   throwIfError(internshipsResult.error, "Failed to load internships for department coordinator");
+  throwIfError(coordinatorsResult.error, "Failed to load faculty coordinators for department coordinator");
+  throwIfError(assignmentsResult.error, "Failed to load student coordinator assignments");
 
   const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
   const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
   const internships = (internshipsResult.data as Array<Record<string, unknown>> | null) || [];
   const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
+  const coordinators = (coordinatorsResult.data as Array<Record<string, unknown>> | null) || [];
+  const assignments = (assignmentsResult.data as Array<Record<string, unknown>> | null) || [];
+  const coordinatorById = new Map(
+    coordinators.map((coordinator) => [String(coordinator.id || ""), coordinator])
+  );
+  const assignmentByStudentId = new Map(
+    assignments
+      .filter((assignment) => String(assignment.status || "").toUpperCase() === "ACTIVE")
+      .map((assignment) => [String(assignment.studentId || ""), assignment])
+  );
 
   const allowedStudentIds = scopeFilters.hasSpecificScope
     ? new Set(
@@ -800,37 +944,93 @@ export async function fetchDepartmentCoordinatorStudentsData(): Promise<Departme
     : applications;
 
   const students = scopedUsers.filter((user) => normalizeOverviewStatus(String(user.role || "")).includes("STUDENT"));
-  const studentsById = new Map(students.map((student) => [String(student.id || ""), student]));
+  const latestApplicationByStudentId = new Map<string, Record<string, unknown>>();
+  for (const application of scopedApplications) {
+    const studentId = String(application.studentId || "");
+    if (studentId && !latestApplicationByStudentId.has(studentId)) {
+      latestApplicationByStudentId.set(studentId, application);
+    }
+  }
 
-  const rows = scopedApplications.map((application) => {
-    const student = application.student as { name?: string | null } | null;
-    const internship = application.internship as { title?: string | null; recruiter?: { company?: string | null } | null } | null;
-    const placementStatus = placementStatusFromApplication(String(application.status || ""));
+  const rows = students.map((studentRecord) => {
+    const studentId = String(studentRecord.id || "");
+    const application = latestApplicationByStudentId.get(studentId);
+    const student = studentRecord as { name?: string | null };
+    const internship = application?.internship as { id?: string | null; title?: string | null; recruiter?: { company?: string | null } | null } | null;
+    const assignment = assignmentByStudentId.get(studentId);
+    const coordinator = coordinatorById.get(String(assignment?.coordinatorId || ""));
+    const placementStatus = application
+      ? (application.departmentApprovalRequired ? "Awaiting approval" : placementStatusFromApplication(String(application.status || "")))
+      : "No Placement";
 
     return {
+      id: studentId,
+      internshipId: application ? String(application.internshipId || internship?.id || "") : "",
       name: student?.name || "Student",
-      internship: internship?.title || internship?.recruiter?.company || "Unassigned",
+      email: String(studentRecord.email || "") || null,
+      internship: application ? internship?.title || internship?.recruiter?.company || "Unassigned" : "Unassigned",
       status: placementStatus,
-      placement: internship ? "Confirmed" : "Pending",
+      placement: application && internship ? "Confirmed" : "Pending",
+      facultyCoordinatorId: coordinator?.id ? String(coordinator.id) : null,
+      facultyCoordinator: coordinator?.name || "Unassigned",
     };
   });
 
-  if (rows.length > 0) return rows.slice(0, 8);
+  return {
+    students: rows.slice(0, 50),
+    facultyCoordinators: coordinators.map((coordinator) => ({
+      id: String(coordinator.id || ""),
+      name: String(coordinator.name || "Faculty Coordinator"),
+      email: coordinator.email as string | null | undefined,
+    })),
+  };
+}
 
-  return students.slice(0, 8).map((student) => ({
-    name: String(student.name || "Student"),
-    internship: "Unassigned",
-    status: "No Placement",
-    placement: "Pending",
-  }));
+export async function assignDepartmentStudentFacultyCoordinator(studentId: string, coordinatorId: string | null): Promise<void> {
+  const { data: affiliation, error: affiliationError } = await supabase
+    .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+    .select("institutionId, facultyId, departmentId")
+    .eq("studentId", studentId)
+    .eq("isPrimary", true)
+    .maybeSingle();
+  throwIfError(affiliationError, "Failed to load student affiliation");
+  if (!affiliation) throw new Error("This student has no institution affiliation.");
+
+  const { error: deleteError } = await supabase
+    .from(TABLES.COORDINATOR_ASSIGNMENT)
+    .delete()
+    .eq("studentId", studentId)
+    .eq("role", "Faculty Coordinator");
+  throwIfError(deleteError, "Failed to clear the previous faculty coordinator assignment");
+
+  if (!coordinatorId) return;
+
+  const now = new Date().toISOString();
+  const { error } = await supabase.from(TABLES.COORDINATOR_ASSIGNMENT).insert({
+    id: newId(),
+    studentId,
+    coordinatorId,
+    role: "Faculty Coordinator",
+    status: "ACTIVE",
+    institutionId: affiliation.institutionId,
+    facultyId: affiliation.facultyId,
+    departmentId: affiliation.departmentId,
+    assignedById: (await supabase.auth.getUser()).data.user?.id || null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  throwIfError(error, "Failed to assign faculty coordinator to student");
 }
 
 export interface DepartmentCoordinatorOrganisationRow {
   name: string;
   sector: string;
+  location: string;
+  opportunities: number;
   students: number;
   contact: string;
   status: string;
+  internshipTitles: string[];
 }
 
 export async function fetchDepartmentCoordinatorOrganisationsData(): Promise<DepartmentCoordinatorOrganisationRow[]> {
@@ -884,13 +1084,19 @@ export async function fetchDepartmentCoordinatorOrganisationsData(): Promise<Dep
     const existing = companyMap.get(company) || {
       name: company,
       sector: String(internship.type || internship.location || "Internship placement"),
+      location: String(internship.location || "Location not provided"),
+      opportunities: 0,
       students: 0,
       contact: recruiterName,
       status: "Verified",
+      internshipTitles: [],
     };
 
+    existing.opportunities += 1;
     existing.students += 1;
     existing.contact = recruiterName || existing.contact;
+    const title = String(internship.title || "Internship opportunity");
+    if (!existing.internshipTitles.includes(title)) existing.internshipTitles.push(title);
     companyMap.set(company, existing);
   }
 
@@ -901,9 +1107,12 @@ export async function fetchDepartmentCoordinatorOrganisationsData(): Promise<Dep
       .map((user) => ({
         name: String(user.company || "Company"),
         sector: String(user.company || "Internship placement"),
+        location: "Location not provided",
+        opportunities: 0,
         students: 0,
         contact: String(user.name || "Recruiter"),
         status: "Pending",
+        internshipTitles: [],
       }));
   }
 
@@ -1560,6 +1769,13 @@ export async function createApplication(payload: {
   internshipId: string;
   coverLetter?: string;
   resumeUrl?: string;
+  coverLetterUrl?: string;
+  coordinatorSupportRequested?: boolean;
+  departmentCoordinatorId?: string;
+  skills?: string[];
+  startDate?: string;
+  endDate?: string;
+  questionAnswers?: Array<{ question: string; answer: string }>;
 }): Promise<Application> {
   const { data: user } = await supabase.auth.getUser();
   if (!user?.user?.id) throw new Error("You must be signed in to apply.");
@@ -1567,25 +1783,80 @@ export async function createApplication(payload: {
   // Ensure the student's profile row exists so the FK constraint is satisfied.
   await ensureUserProfileRow(user.user.id);
 
+  const { data: affiliation, error: affiliationError } = await supabase
+    .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+    .select("isPrimary, departmentId")
+    .eq("studentId", user.user.id)
+    .eq("isPrimary", true)
+    .maybeSingle();
+  throwIfError(affiliationError, "Failed to determine institution affiliation");
+
+  const requiresDepartmentReview = payload.coordinatorSupportRequested === true;
+  if (requiresDepartmentReview && !payload.departmentCoordinatorId) {
+    throw new Error("Please select a department coordinator for your support request.");
+  }
+  if (requiresDepartmentReview && !(await isAvailableDepartmentCoordinator(payload.departmentCoordinatorId!))) {
+    throw new Error("The selected department coordinator is not available.");
+  }
+  const departmentReviewStatus = requiresDepartmentReview ? "PENDING" : "NOT_REQUIRED";
+
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from(TABLES.APPLICATION)
     .insert({
       id: newId(),
-      ...payload,
+      internshipId: payload.internshipId,
       studentId: user.user.id,
       status: "PENDING",
+      coverLetter: payload.coverLetter || "",
+      resumeUrl: payload.resumeUrl || null,
+      coverLetterUrl: payload.coverLetterUrl || null,
+      departmentApprovalRequired: requiresDepartmentReview,
+      departmentReviewStatus,
+      coordinatorSupportRequested: Boolean(payload.coordinatorSupportRequested),
+      departmentCoordinatorId: payload.departmentCoordinatorId || null,
+      skills: payload.skills?.length ? payload.skills : [],
+      startDate: payload.startDate || null,
+      endDate: payload.endDate || null,
+      questionAnswers: payload.questionAnswers?.length ? payload.questionAnswers : [],
       createdAt: now,
       updatedAt: now,
     })
-    .select()
+    .select("*")
     .single();
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.error("Application insert failed:", error);
-    throw error;
-  }
+  throwIfError(error, "Failed to submit your application");
   return data as Application;
+}
+
+export interface AvailableDepartmentCoordinator {
+  id: string;
+  name: string;
+  email?: string | null;
+  positionTitle?: string | null;
+  department?: { name?: string | null } | null;
+}
+
+export async function fetchAvailableDepartmentCoordinators(): Promise<AvailableDepartmentCoordinator[]> {
+  const { data, error } = await supabase
+    .from(TABLES.USER)
+    .select("id, name, email, positionTitle, department:departmentId(name)")
+    .eq("role", "DEPARTMENT_COORDINATOR")
+    .in("coordinatorStatus", ["APPROVED", "ACTIVE"])
+    .order("name", { ascending: true });
+  throwIfError(error, "Failed to load department coordinators");
+  return (data as AvailableDepartmentCoordinator[]) || [];
+}
+
+async function isAvailableDepartmentCoordinator(coordinatorId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from(TABLES.USER)
+    .select("id")
+    .eq("id", coordinatorId)
+    .eq("role", "DEPARTMENT_COORDINATOR")
+    .in("coordinatorStatus", ["APPROVED", "ACTIVE"])
+    .maybeSingle();
+  throwIfError(error, "Failed to validate department coordinator");
+  return Boolean(data);
 }
 
 /**
@@ -1607,6 +1878,73 @@ export async function updateApplicationStatus(id: string, status: string): Promi
     })
     .eq("id", id);
   throwIfError(error, "Failed to update application status");
+}
+
+export interface DepartmentCoordinatorApplication {
+  id: string;
+  internshipId: string;
+  studentId: string;
+  status: string;
+  departmentApprovalRequired?: boolean;
+  departmentReviewStatus?: string | null;
+  coordinatorSupportRequested?: boolean;
+  departmentCoordinatorId?: string | null;
+  coverLetter?: string | null;
+  coverLetterUrl?: string | null;
+  resumeUrl?: string | null;
+  skills?: string[] | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  questionAnswers?: Array<{ question: string; answer: string }> | null;
+  createdAt?: string | null;
+  student?: { id?: string; name?: string | null; email?: string | null; phoneNumber?: string | null; major?: string | null; university?: string | null; cvUrl?: string | null } | null;
+  internship?: {
+    id?: string;
+    title?: string | null;
+    description?: string | null;
+    location?: string | null;
+    applicationDeadline?: string | null;
+    applicationQuestions?: string[] | null;
+    recruiter?: { name?: string | null; company?: string | null } | null;
+  } | null;
+}
+
+export async function fetchDepartmentCoordinatorApplications(): Promise<DepartmentCoordinatorApplication[]> {
+  const { data, error } = await supabase
+    .from(TABLES.APPLICATION)
+    .select(
+      "*, internship:internshipId(id, title, description, location, applicationDeadline, applicationQuestions, recruiter:recruiterId(name, company)), student:studentId(id, name, email, phoneNumber, major, university, cvUrl)"
+    )
+    .or(
+      `departmentReviewStatus.eq.PENDING,and(coordinatorSupportRequested.eq.true,departmentReviewStatus.eq.NOT_REQUIRED)`
+    )
+    .order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load applications awaiting department review");
+  return (data as DepartmentCoordinatorApplication[]) || [];
+}
+
+export async function fetchApplicationById(id: string): Promise<Application | null> {
+  const { data, error } = await supabase
+    .from(TABLES.APPLICATION)
+    .select(
+      "*, internship:internshipId(id, title, description, location, applicationDeadline, startDate, endDate, recruiter:recruiterId(name, company)), student:studentId(id, name, email, phoneNumber, university, major, cvUrl)"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  throwIfError(error, "Failed to load application");
+  return (data as Application) || null;
+}
+
+export async function reviewDepartmentApplication(id: string, decision: "APPROVED" | "REJECTED"): Promise<void> {
+  const { data, error } = await supabase.rpc("review_department_application", {
+    p_application_id: id,
+    p_decision: decision,
+  });
+  throwIfError(error, "Failed to submit department review");
+  const result = (data || {}) as { success?: boolean; message?: string };
+  if (result.success === false) {
+    throw new Error(result.message || "The department review could not be recorded.");
+  }
 }
 
 /* ============================================================
@@ -1905,6 +2243,9 @@ export async function reviewDepartmentCoordinatorRequest(
       .update({
         coordinatorStatus: decision,
         isApproved: decision === "APPROVED",
+        institutionId: decision === "APPROVED" ? request.institutionId || null : null,
+        facultyId: decision === "APPROVED" ? request.facultyId || null : null,
+        departmentId: decision === "APPROVED" ? request.departmentId || null : null,
         approvedAt: decision === "APPROVED" ? now : null,
         rejectedAt: decision === "REJECTED" ? now : null,
         approvalReviewedById: reviewerId,
@@ -2148,14 +2489,51 @@ export async function createCoordinatorInvitation(payload: {
   name?: string;
   email: string;
   role?: string;
+  institutionId?: string | null;
+  facultyId?: string | null;
+  departmentId?: string | null;
 }): Promise<{ invitation: CoordinatorInvitation; activationToken: string; activationLink: string }> {
   const { data: user } = await supabase.auth.getUser();
   if (!user?.user?.id) throw new Error("You must be signed in.");
 
   const rawToken = generateInvitationToken();
   const role = (payload.role || "Department Coordinator").trim();
+  let scope = {
+    institutionId: payload.institutionId || null,
+    facultyId: payload.facultyId || null,
+    departmentId: payload.departmentId || null,
+  };
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
+
+  const isFacultyInvitation = role.toUpperCase().replace(/-/g, "_") === "FACULTY_COORDINATOR" || role.toLowerCase() === "faculty coordinator";
+
+  if (isFacultyInvitation) {
+    const { data: rpcData, error: rpcError } = await supabase.rpc("create_faculty_coordinator_invitation", {
+      p_id: newId(),
+      p_email: payload.email.trim(),
+      p_name: payload.name?.trim() || "",
+      p_token_hash: sha256Hex(rawToken),
+      p_token_expires_at: expiresAt,
+    });
+    throwIfError(rpcError, "Failed to create faculty coordinator invitation");
+    const result = rpcData as { success?: boolean; message?: string; invitation?: CoordinatorInvitation };
+    if (!result.success || !result.invitation) throw new Error(result.message || "Failed to create faculty coordinator invitation");
+    const activationLink = `${window.location.origin}/coordinator/activate/${rawToken}`;
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: {
+          to: payload.email.trim(),
+          subject: "InternConnect faculty coordinator activation",
+          text: `Use this link to activate your InternConnect faculty coordinator account:\n${activationLink}`,
+          html: `<p>Use this link to activate your InternConnect faculty coordinator account:</p><p><a href="${activationLink}">${activationLink}</a></p>`,
+        },
+      });
+    } catch (invokeError) {
+      console.info("Faculty coordinator email delivery was not configured or could not be sent:", invokeError);
+    }
+    return { invitation: result.invitation, activationToken: rawToken, activationLink };
+  }
 
   const { data, error } = await supabase
     .from(TABLES.COORDINATOR_INVITATION)
@@ -2164,6 +2542,7 @@ export async function createCoordinatorInvitation(payload: {
       email: payload.email.trim(),
       name: payload.name?.trim() || null,
       role,
+      ...scope,
       tokenHash: sha256Hex(rawToken),
       tokenExpiresAt: expiresAt,
       status: "SENT",
@@ -2197,6 +2576,78 @@ export async function createCoordinatorInvitation(payload: {
   };
 }
 
+export interface FacultyCoordinatorProfile {
+  id: string;
+  name: string | null;
+  email: string;
+  staffId: string | null;
+  status: string;
+  assignedStudents: number;
+}
+
+export async function createFacultyCoordinator(payload: {
+  name: string;
+  email: string;
+}): Promise<{ coordinator: FacultyCoordinatorProfile; temporaryPassword: string }> {
+  const { data, error } = await supabase.functions.invoke("create-faculty-coordinator", {
+    body: payload,
+  });
+  if (error) {
+    const response = (error as { context?: Response }).context;
+    if (response) {
+      try {
+        const details = await response.clone().json() as { message?: string };
+        throw new Error(details.message || "Failed to create Faculty Coordinator.");
+      } catch (responseError) {
+        if (responseError instanceof Error && responseError.message !== "Unexpected end of JSON input") throw responseError;
+      }
+    }
+    throwIfError(error, "Failed to create Faculty Coordinator");
+  }
+  const result = data as {
+    success?: boolean;
+    message?: string;
+    coordinator?: FacultyCoordinatorProfile;
+    temporaryPassword?: string;
+  } | null;
+  if (!result?.success || !result.coordinator || !result.temporaryPassword) {
+    throw new Error(result?.message || "Failed to create Faculty Coordinator.");
+  }
+  return { coordinator: result.coordinator, temporaryPassword: result.temporaryPassword };
+}
+
+/** Loads existing Faculty Coordinator profiles in the current coordinator scope. */
+export async function fetchFacultyCoordinatorProfiles(): Promise<FacultyCoordinatorProfile[]> {
+  const { data: coordinators, error } = await supabase
+    .from(TABLES.USER)
+    .select("id, name, email, staffId, coordinatorStatus")
+    .eq("role", "FACULTY_COORDINATOR")
+    .order("name", { ascending: true });
+  throwIfError(error, "Failed to load Faculty Coordinators");
+
+  const { data: assignments, error: assignmentError } = await supabase
+    .from(TABLES.COORDINATOR_ASSIGNMENT)
+    .select("coordinatorId")
+    .eq("role", "Faculty Coordinator")
+    .eq("status", "ACTIVE");
+  throwIfError(assignmentError, "Failed to load Faculty Coordinator assignments");
+
+  const counts = new Map<string, number>();
+  for (const assignment of assignments || []) {
+    const coordinatorId = String((assignment as { coordinatorId?: string }).coordinatorId || "");
+    if (coordinatorId) counts.set(coordinatorId, (counts.get(coordinatorId) || 0) + 1);
+  }
+
+  return (coordinators || []).map((coordinator) => ({
+    id: String(coordinator.id),
+    name: coordinator.name as string | null,
+    email: String(coordinator.email || ""),
+    staffId: coordinator.staffId as string | null,
+    status: String(coordinator.coordinatorStatus || "INACTIVE"),
+    assignedStudents: counts.get(String(coordinator.id)) || 0,
+  }));
+}
+
 /** Fetches all coordinator invitations for the admin. */
 export async function fetchCoordinatorInvitations(): Promise<CoordinatorInvitation[]> {
   const { data, error } = await supabase
@@ -2210,7 +2661,7 @@ export async function fetchCoordinatorInvitations(): Promise<CoordinatorInvitati
 /** Resolves a coordinator invitation by raw token (public page, before activation). */
 export async function getCoordinatorInvitation(
   token: string
-): Promise<{ valid: boolean; reason?: string; email?: string; name?: string }> {
+): Promise<{ valid: boolean; reason?: string; email?: string; name?: string; role?: string }> {
   const { data, error } = await supabase.rpc("get_coordinator_invitation", {
     p_raw_token: (token || "").trim(),
   });
@@ -2220,6 +2671,7 @@ export async function getCoordinatorInvitation(
     reason?: string;
     email?: string;
     name?: string;
+    role?: string;
   };
 }
 
@@ -2240,7 +2692,7 @@ export async function activateCoordinatorInvitation(
   const signUp = await supabase.auth.signUp({
     email: invite.email.trim(),
     password,
-    options: { data: { name, role: "DEPARTMENT_COORDINATOR" } },
+    options: { data: { name, role: invite.role || "DEPARTMENT_COORDINATOR" } },
   });
   if (signUp.error) throw signUp.error;
   const userId = signUp.data.user?.id;

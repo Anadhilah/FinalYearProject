@@ -13,6 +13,12 @@ export interface User {
   avatar?: string;
   isApproved?: boolean;
   recruiterStatus?: string;
+  coordinatorStatus?: string;
+  staffId?: string | null;
+  institutionId?: string | null;
+  facultyId?: string | null;
+  departmentId?: string | null;
+  mustChangePassword?: boolean;
   emailVerified?: boolean;
   company?: string | null;
   industry?: string | null;
@@ -63,6 +69,12 @@ interface RawUser {
   role: string;
   isApproved?: boolean;
   recruiterStatus?: string;
+  coordinatorStatus?: string;
+  staffId?: string | null;
+  institutionId?: string | null;
+  facultyId?: string | null;
+  departmentId?: string | null;
+  mustChangePassword?: boolean;
   emailVerified?: boolean;
   company?: string | null;
   industry?: string | null;
@@ -82,6 +94,12 @@ const mapRawUser = (raw: RawUser | null | undefined): User => ({
   role: (raw?.role ?? "student").toLowerCase().replace(/[_\s]+/g, "-") as UserRole,
   isApproved: raw?.isApproved,
   recruiterStatus: raw?.recruiterStatus?.toLowerCase?.(),
+  coordinatorStatus: raw?.coordinatorStatus?.toUpperCase?.(),
+  staffId: raw?.staffId,
+  institutionId: raw?.institutionId,
+  facultyId: raw?.facultyId,
+  departmentId: raw?.departmentId,
+  mustChangePassword: raw?.mustChangePassword,
   emailVerified: raw?.emailVerified,
   company: raw?.company,
   industry: raw?.industry,
@@ -142,7 +160,7 @@ const fetchProfile = async (userId: string, authUser?: { email?: string; app_met
     const { data, error } = await supabase
       .from("User")
       .select(
-        "id, name, email, role, isApproved, recruiterStatus, emailVerified, company, industry, companyAddress, registrationNumber, proofDocUrl, hrName, hrEmail"
+        "id, name, email, role, isApproved, recruiterStatus, coordinatorStatus, staffId, institutionId, facultyId, departmentId, mustChangePassword, emailVerified, company, industry, companyAddress, registrationNumber, proofDocUrl, hrName, hrEmail"
       )
       .eq("id", userId)
       .single();
@@ -472,9 +490,12 @@ const initialize = async () => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    persistUser(null);
-    localStorage.removeItem("ic_dev_verification_code");
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      persistUser(null);
+      localStorage.removeItem("ic_dev_verification_code");
+    }
   };
 
   return (

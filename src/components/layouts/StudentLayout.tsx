@@ -5,8 +5,10 @@ import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { useMessages } from "@/contexts/MessagesContext";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { TABLES } from "@/lib/supabaseTables";
 
 const navItems = [
   { label: "Overview", path: "/student", icon: LayoutDashboard },
@@ -22,7 +24,39 @@ export default function StudentLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [departmentName, setDepartmentName] = useState<string | null>(null);
   const { unreadCount } = useMessages();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDepartment = async () => {
+      if (!user?.id) {
+        setDepartmentName(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
+        .select("department:departmentId(name)")
+        .eq("studentId", user.id)
+        .eq("isPrimary", true)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to load student department:", error);
+        setDepartmentName(null);
+        return;
+      }
+
+      const department = data?.department as { name?: string | null } | null;
+      setDepartmentName(department?.name || null);
+    };
+
+    void loadDepartment();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   return (
     <div className="min-h-screen flex bg-muted/30">
@@ -69,7 +103,7 @@ export default function StudentLayout() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.name}</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">{departmentName || "Department not set"}</p>
             </div>
           </div>
           <LogoutButton variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent">

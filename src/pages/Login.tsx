@@ -24,7 +24,7 @@ export default function Login() {
     try {
       const loggedInUser = await login(email, password);
       toast({ title: "Login successful", description: "You have been logged in.", variant: "default" });
-      navigate(getRoleDashboardPath(loggedInUser.role), { replace: true });
+      navigate(loggedInUser.mustChangePassword ? "/change-password" : getRoleDashboardPath(loggedInUser.role), { replace: true });
     } catch (error: unknown) {
       console.log(error);
       toast({ title: "Login failed", description: "Invalid credentials. Try again.", variant: "destructive" });

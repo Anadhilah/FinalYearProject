@@ -42,33 +42,33 @@ create table if not exists "User" (
   email text not null unique,
   role "Role" not null,
   name text,
-  isApproved boolean not null default false,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now(),
+  "isApproved" boolean not null default false,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now(),
   company text,
   industry text,
-  proofDocUrl text,
-  recruiterStatus "RecruiterStatus",
-  registrationNumber text,
-  recruiterApprovedAt timestamptz,
-  recruiterRejectedAt timestamptz,
+  "proofDocUrl" text,
+  "recruiterStatus" "RecruiterStatus",
+  "registrationNumber" text,
+  "recruiterApprovedAt" timestamptz,
+  "recruiterRejectedAt" timestamptz,
   bio text,
-  cvUrl text,
+  "cvUrl" text,
   major text,
   university text,
   suspended boolean not null default false,
-  companyAddress text,
-  companyDescription text,
-  companySize text,
-  companyWebsite text,
-  emailVerificationCode text,
-  emailVerificationExpiresAt timestamptz,
-  emailVerified boolean not null default false,
-  hrEmail text,
-  hrName text,
-  hrPhone text,
-  hrTitle text,
-  taxId text,
+  "companyAddress" text,
+  "companyDescription" text,
+  "companySize" text,
+  "companyWebsite" text,
+  "emailVerificationCode" text,
+  "emailVerificationExpiresAt" timestamptz,
+  "emailVerified" boolean not null default false,
+  "hrEmail" text,
+  "hrName" text,
+  "hrPhone" text,
+  "hrTitle" text,
+  "taxId" text,
   city text,
   country text
 );
@@ -85,77 +85,78 @@ create table if not exists "Internship" (
   stipend text,
   requirements text,
   status "InternshipStatus" not null default 'ACTIVE',
-  recruiterId text not null references "User" (id) on delete cascade,
-  supervisorId text references "User" (id) on delete set null,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "recruiterId" text not null references "User" (id) on delete cascade,
+  "supervisorId" text references "User" (id) on delete set null,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Internship" enable row level security;
 
 -- ---------- Application ----------
 create table if not exists "Application" (
   id text primary key,
-  internshipId text not null references "Internship" (id) on delete cascade,
-  studentId text not null references "User" (id) on delete cascade,
+  "internshipId" text not null references "Internship" (id) on delete cascade,
+  "studentId" text not null references "User" (id) on delete cascade,
   status "ApplicationStatus" not null default 'pending',
-  coverLetter text,
-  resumeUrl text,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "coverLetter" text,
+  "resumeUrl" text,
+  "departmentCoordinatorId" text references "User" (id) on delete set null,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Application" enable row level security;
 
 -- ---------- Conversation ----------
 create table if not exists "Conversation" (
   id text primary key,
-  lastActivity timestamptz not null default now(),
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "lastActivity" timestamptz not null default now(),
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Conversation" enable row level security;
 
 -- ---------- ConversationParticipant ----------
 create table if not exists "ConversationParticipant" (
   id text primary key,
-  conversationId text not null references "Conversation" (id) on delete cascade,
-  userId text not null references "User" (id) on delete cascade,
-  createdAt timestamptz not null default now()
+  "conversationId" text not null references "Conversation" (id) on delete cascade,
+  "userId" text not null references "User" (id) on delete cascade,
+  "createdAt" timestamptz not null default now()
 );
 alter table "ConversationParticipant" enable row level security;
 
 -- ---------- Message ----------
 create table if not exists "Message" (
   id text primary key,
-  conversationId text not null references "Conversation" (id) on delete cascade,
-  senderId text not null references "User" (id) on delete cascade,
+  "conversationId" text not null references "Conversation" (id) on delete cascade,
+  "senderId" text not null references "User" (id) on delete cascade,
   text text not null,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Message" enable row level security;
 
 -- ---------- WeeklyLogbookReport ----------
 create table if not exists "WeeklyLogbookReport" (
   id text primary key,
-  studentId text not null references "User" (id) on delete cascade,
-  internshipId text not null references "Internship" (id) on delete cascade,
-  weekNumber integer not null,
-  startDate date,
-  endDate date,
-  tasksPerformed text not null,
-  skillsLearned text not null,
-  challengesFaced text not null,
-  hoursWorked integer not null default 0,
-  attachmentUrls text,
+  "studentId" text not null references "User" (id) on delete cascade,
+  "internshipId" text not null references "Internship" (id) on delete cascade,
+  "weekNumber" integer not null,
+  "startDate" date,
+  "endDate" date,
+  "tasksPerformed" text not null,
+  "skillsLearned" text not null,
+  "challengesFaced" text not null,
+  "hoursWorked" integer not null default 0,
+  "attachmentUrls" text,
   status "LogbookStatus" not null default 'DRAFT',
-  recruiterComment text,
-  supervisorComment text,
-  shareToken text,
-  sharedAt timestamptz,
-  reviewedById text references "User" (id) on delete set null,
-  reviewedAt timestamptz,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "recruiterComment" text,
+  "supervisorComment" text,
+  "shareToken" text,
+  "sharedAt" timestamptz,
+  "reviewedById" text references "User" (id) on delete set null,
+  "reviewedAt" timestamptz,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "WeeklyLogbookReport" enable row level security;
 
@@ -163,13 +164,13 @@ alter table "WeeklyLogbookReport" enable row level security;
 create table if not exists "Meeting" (
   id text primary key,
   title text not null,
-  studentId text not null references "User" (id) on delete cascade,
-  recruiterId text not null references "User" (id) on delete cascade,
-  scheduledFor timestamptz not null,
+  "studentId" text not null references "User" (id) on delete cascade,
+  "recruiterId" text not null references "User" (id) on delete cascade,
+  "scheduledFor" timestamptz not null,
   type text not null default 'video',
   status text not null default 'upcoming',
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Meeting" enable row level security;
 
@@ -216,62 +217,62 @@ create table if not exists "Institution" (
   name text not null,
   slug text,
   description text,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Institution" enable row level security;
 
 -- ---------- FacultySchool ----------
 create table if not exists "FacultySchool" (
   id text primary key,
-  institutionId text not null references "Institution" (id) on delete cascade,
+  "institutionId" text not null references "Institution" (id) on delete cascade,
   name text not null,
   description text,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "FacultySchool" enable row level security;
 
 -- ---------- Department ----------
 create table if not exists "Department" (
   id text primary key,
-  institutionId text not null references "Institution" (id) on delete cascade,
-  facultyId text references "FacultySchool" (id) on delete set null,
+  "institutionId" text not null references "Institution" (id) on delete cascade,
+  "facultyId" text references "FacultySchool" (id) on delete set null,
   name text not null,
   description text,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "Department" enable row level security;
 
 -- ---------- StudentInstitutionAffiliation ----------
 create table if not exists "StudentInstitutionAffiliation" (
   id text primary key,
-  studentId text not null references "User" (id) on delete cascade,
-  institutionId text not null references "Institution" (id) on delete cascade,
-  facultyId text references "FacultySchool" (id) on delete set null,
-  departmentId text references "Department" (id) on delete set null,
-  studentNumber text,
-  isPrimary boolean not null default true,
-  startDate date,
-  endDate date,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "studentId" text not null references "User" (id) on delete cascade,
+  "institutionId" text not null references "Institution" (id) on delete cascade,
+  "facultyId" text references "FacultySchool" (id) on delete set null,
+  "departmentId" text references "Department" (id) on delete set null,
+  "studentNumber" text,
+  "isPrimary" boolean not null default true,
+  "startDate" date,
+  "endDate" date,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "StudentInstitutionAffiliation" enable row level security;
 
 -- ---------- CoordinatorAssignment ----------
 create table if not exists "CoordinatorAssignment" (
   id text primary key,
-  coordinatorId text not null references "User" (id) on delete cascade,
+  "coordinatorId" text not null references "User" (id) on delete cascade,
   role text,
   status text not null default 'PENDING',
-  institutionId text references "Institution" (id) on delete set null,
-  facultyId text references "FacultySchool" (id) on delete set null,
-  departmentId text references "Department" (id) on delete set null,
-  assignedById text references "User" (id) on delete set null,
-  createdAt timestamptz not null default now(),
-  updatedAt timestamptz not null default now()
+  "institutionId" text references "Institution" (id) on delete set null,
+  "facultyId" text references "FacultySchool" (id) on delete set null,
+  "departmentId" text references "Department" (id) on delete set null,
+  "assignedById" text references "User" (id) on delete set null,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
 );
 alter table "CoordinatorAssignment" enable row level security;
 

@@ -13,6 +13,7 @@ type InviteInfo = {
   reason?: string;
   email?: string;
   name?: string;
+  role?: string;
 };
 
 export default function CoordinatorActivate() {
@@ -62,7 +63,8 @@ export default function CoordinatorActivate() {
     setSubmitting(true);
     try {
       const result = await activateCoordinatorInvitation(token, name || info?.name || "", password);
-      toast({ title: "Account activated!", description: `Welcome, Department Coordinator. You can now log in with ${result.email}.` });
+      const coordinatorType = info?.role?.toUpperCase().includes("FACULTY") ? "Faculty Coordinator" : "Department Coordinator";
+      toast({ title: "Account activated!", description: `Welcome, ${coordinatorType}. You can now log in with ${result.email}.` });
       navigate("/login", { replace: true });
     } catch (err) {
       toast({
@@ -111,9 +113,9 @@ export default function CoordinatorActivate() {
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <img src={logo} alt="InternshipConnect" className="h-16 w-16 object-contain mx-auto mb-8 md:hidden" />
-          <h1 className="text-3xl font-display font-bold mb-1">Activate Department Coordinator Account</h1>
+          <h1 className="text-3xl font-display font-bold mb-1">Activate {info?.role?.toUpperCase().includes("FACULTY") ? "Faculty" : "Department"} Coordinator Account</h1>
           <p className="text-muted-foreground text-sm mb-8">
-            Complete your account setup to become a Department Coordinator in InternshipConnect.
+            Complete your account setup to become a {info?.role?.toUpperCase().includes("FACULTY") ? "Faculty" : "Department"} Coordinator in InternshipConnect.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">

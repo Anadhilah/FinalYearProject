@@ -14,8 +14,16 @@ import {
   updateInternship,
   deleteInternship,
   fetchMyApplications,
+  fetchDepartmentCoordinatorApplications,
+  fetchAvailableDepartmentCoordinators,
   createApplication,
   updateApplicationStatus,
+  reviewDepartmentApplication,
+  fetchDepartmentCoordinatorStudentsData,
+  assignDepartmentStudentFacultyCoordinator,
+  fetchDepartmentCoordinatorOrganisationsData,
+  fetchDepartmentCoordinatorReportsData,
+  fetchFacultyCoordinatorReportsData,
   fetchLogbookReports,
   createLogbookReport,
   reviewLogbookReport,
@@ -63,6 +71,18 @@ export const apiAuthenticationServiceGet = async (url: string): Promise<ApiResul
       return wrap(await fetchInternshipById(url.split("/")[2]));
     case url === "/applications-list/mine":
       return wrap(await fetchMyApplications());
+    case url === "/department-coordinator/internship-approval":
+      return wrap(await fetchDepartmentCoordinatorApplications());
+    case url === "/department-coordinators/available":
+      return wrap(await fetchAvailableDepartmentCoordinators());
+    case url === "/department-coordinator/students":
+      return wrap(await fetchDepartmentCoordinatorStudentsData());
+    case url === "/department-coordinator/organisations":
+      return wrap(await fetchDepartmentCoordinatorOrganisationsData());
+    case url === "/department-coordinator/reports":
+      return wrap(await fetchDepartmentCoordinatorReportsData());
+    case url === "/faculty-coordinator/reports":
+      return wrap(await fetchFacultyCoordinatorReportsData());
     case /^\/applications-list\/[^/]+\/resume-url$/.test(url): {
       const appId = url.split("/")[2];
       const { data: app } = await supabase
@@ -71,6 +91,18 @@ export const apiAuthenticationServiceGet = async (url: string): Promise<ApiResul
         .eq("id", appId)
         .single();
       const path = app?.resumeUrl;
+      if (!path) return wrap({ url: "" });
+      const signedUrl = await getSignedFileUrl(path);
+      return wrap({ url: signedUrl });
+    }
+    case /^\/applications-list\/[^/]+\/cover-letter-url$/.test(url): {
+      const appId = url.split("/")[2];
+      const { data: app } = await supabase
+        .from("Application")
+        .select("coverLetterUrl")
+        .eq("id", appId)
+        .single();
+      const path = app?.coverLetterUrl;
       if (!path) return wrap({ url: "" });
       const signedUrl = await getSignedFileUrl(path);
       return wrap({ url: signedUrl });
@@ -147,12 +179,32 @@ export const apiAuthenticationServicePost = async (url: string, data?: unknown):
     case url === "/internships":
       return wrap(await createInternship((data as Record<string, unknown>) || {}));
     case url === "/applications-list": {
-      const { internshipId, coverLetter, resumeUrl } = (data || {}) as {
+      const d = (data || {}) as {
         internshipId: string;
         coverLetter?: string;
         resumeUrl?: string;
+        coverLetterUrl?: string;
+        coordinatorSupportRequested?: boolean;
+        departmentCoordinatorId?: string;
+        skills?: string[];
+        startDate?: string;
+        endDate?: string;
+        questionAnswers?: Array<{ question: string; answer: string }>;
       };
-      return wrap(await createApplication({ internshipId, coverLetter, resumeUrl }));
+      return wrap(
+        await createApplication({
+          internshipId: d.internshipId,
+          coverLetter: d.coverLetter,
+          resumeUrl: d.resumeUrl,
+          coverLetterUrl: d.coverLetterUrl,
+          coordinatorSupportRequested: d.coordinatorSupportRequested,
+          departmentCoordinatorId: d.departmentCoordinatorId,
+          skills: d.skills,
+          startDate: d.startDate,
+          endDate: d.endDate,
+          questionAnswers: d.questionAnswers,
+        })
+      );
     }
     case /^\/upload\/.+$/.test(url): {
       const file = data instanceof FormData
@@ -220,6 +272,18 @@ export const apiAuthenticationServicePut = async (url: string, data?: unknown): 
       const id = url.split("/")[2];
       const { status } = (data || {}) as { status: string };
       await updateApplicationStatus(id, status);
+      return wrap({ success: true });
+    }
+    case /^\/department-coordinator\/internship-approval\/[^/]+\/review$/.test(url): {
+      const id = url.split("/")[3];
+      const { decision } = (data || {}) as { decision: "approved" | "rejected" };
+      await reviewDepartmentApplication(id, decision === "approved" ? "APPROVED" : "REJECTED");
+      return wrap({ success: true });
+    }
+    case /^\/department-coordinator\/students\/[^/]+\/faculty-coordinator$/.test(url): {
+      const studentId = url.split("/")[3];
+      const { coordinatorId } = (data || {}) as { coordinatorId: string | null };
+      await assignDepartmentStudentFacultyCoordinator(studentId, coordinatorId);
       return wrap({ success: true });
     }
     case /^\/users\/[^/]+$/.test(url):

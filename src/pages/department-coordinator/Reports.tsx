@@ -1,27 +1,38 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, Eye } from "lucide-react";
+import { FileText } from "lucide-react";
+import { apiAuthenticationServiceGet } from "@/services/auth";
 
-const reports = [
-  { title: "Weekly department internship report", sender: "Dr. Adebayo", date: "12 Aug 2026", status: "Reviewed" },
-  { title: "Student progress summary", sender: "Prof. Harris", date: "10 Aug 2026", status: "Pending" },
-  { title: "Placement attendance snapshot", sender: "Dr. Mensah", date: "08 Aug 2026", status: "Reviewed" },
-  { title: "Supervisor follow-up notes", sender: "Mrs. Okafor", date: "06 Aug 2026", status: "Draft" },
-];
+type Report = { title: string; sender: string; date: string; status: string };
 
 export default function DepartmentCoordinatorReports() {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadReports = async () => {
+      try {
+        const response = await apiAuthenticationServiceGet("/department-coordinator/reports");
+        setReports(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        setError((err as { message?: string })?.message || "Unable to load reports.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadReports();
+  }, []);
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-display font-bold">Reports</h2>
-          <p className="text-muted-foreground">Review reports submitted by supervisors and department teams.</p>
-        </div>
-        <Button size="sm">Create report</Button>
+      <div>
+        <h2 className="text-2xl font-display font-bold">Reports</h2>
+        <p className="text-muted-foreground">Review real weekly reports submitted by students in your department.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {loading ? <p className="text-sm text-muted-foreground">Loading reports...</p> : error ? <p className="text-sm text-destructive">{error}</p> : reports.length === 0 ? <p className="text-sm text-muted-foreground">No student reports have been submitted.</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {reports.map((report) => (
           <Card key={`${report.title}-${report.date}`} className="shadow-card">
             <CardHeader className="pb-3">
@@ -38,20 +49,10 @@ export default function DepartmentCoordinatorReports() {
                 <span>{report.sender}</span>
                 <span>{report.date}</span>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1">
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </div>
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
