@@ -256,7 +256,10 @@ export async function fetchMyApplications(): Promise<Application[]> {
       .eq("recruiterId", user.user.id);
     const ids = (internships || []).map((i) => i.id);
     if (ids.length === 0) return [];
-    query = query.in("internshipId", ids);
+    query = query
+      .in("internshipId", ids)
+      .eq("departmentApprovalRequired", false)
+      .in("departmentReviewStatus", ["NOT_REQUIRED", "APPROVED"]);
   } else {
     query = query.eq("studentId", user.user.id);
   }
@@ -1932,11 +1935,11 @@ export async function createApplication(payload: {
     .maybeSingle();
   throwIfError(affiliationError, "Failed to determine institution affiliation");
 
-  const requiresDepartmentReview = payload.coordinatorSupportRequested === true;
-  if (requiresDepartmentReview && !payload.departmentCoordinatorId) {
-    throw new Error("Please select a department coordinator for your support request.");
-  }
-  if (requiresDepartmentReview && !(await isAvailableDepartmentCoordinator(payload.departmentCoordinatorId!))) {
+  // Every affiliated student must pass department review before an organisation
+  // can see the application. Coordinator support is optional, but it must not
+  // bypass the institutional review gate.
+  const requiresDepartmentReview = Boolean(affiliation);
+  if (payload.departmentCoordinatorId && !(await isAvailableDepartmentCoordinator(payload.departmentCoordinatorId))) {
     throw new Error("The selected department coordinator is not available.");
   }
   const departmentReviewStatus = requiresDepartmentReview ? "PENDING" : "NOT_REQUIRED";
@@ -1954,7 +1957,7 @@ export async function createApplication(payload: {
       coverLetterUrl: payload.coverLetterUrl || null,
       departmentApprovalRequired: requiresDepartmentReview,
       departmentReviewStatus,
-      coordinatorSupportRequested: Boolean(payload.coordinatorSupportRequested),
+      coordinatorSupportRequested: requiresDepartmentReview || Boolean(payload.coordinatorSupportRequested),
       departmentCoordinatorId: payload.departmentCoordinatorId || null,
       skills: payload.skills?.length ? payload.skills : [],
       startDate: payload.startDate || null,
@@ -2056,9 +2059,7 @@ export async function fetchDepartmentCoordinatorApplications(): Promise<Departme
     .select(
       "*, internship:internshipId(id, title, description, location, applicationDeadline, applicationQuestions, recruiter:recruiterId(name, company)), student:studentId(id, name, email, phoneNumber, major, university, cvUrl)"
     )
-    .or(
-      `departmentReviewStatus.eq.PENDING,and(coordinatorSupportRequested.eq.true,departmentReviewStatus.eq.NOT_REQUIRED)`
-    )
+    .eq("departmentReviewStatus", "PENDING")
     .order("createdAt", { ascending: false });
   throwIfError(error, "Failed to load applications awaiting department review");
   return (data as DepartmentCoordinatorApplication[]) || [];
