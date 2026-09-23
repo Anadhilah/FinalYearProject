@@ -29,6 +29,10 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
+  create type "DepartmentReviewStatus" as enum ('NOT_REQUIRED', 'PENDING', 'APPROVED', 'REJECTED');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
   create type "LogbookStatus" as enum ('DRAFT', 'SUBMITTED', 'PENDING_RECRUITER_REVIEW', 'RECRUITER_CHANGES_REQUESTED', 'RECRUITER_APPROVED', 'PENDING_SUPERVISOR_REVIEW', 'SUPERVISOR_CHANGES_REQUESTED', 'SUPERVISOR_APPROVED', 'COMPLETED', 'APPROVED', 'REQUESTED_CHANGES');
 exception when duplicate_object then null; end $$;
 
@@ -54,8 +58,10 @@ create table if not exists "User" (
   "recruiterRejectedAt" timestamptz,
   bio text,
   "cvUrl" text,
+  phone text,
   major text,
   university text,
+  "graduationYear" integer,
   suspended boolean not null default false,
   "companyAddress" text,
   "companyDescription" text,
@@ -100,6 +106,9 @@ create table if not exists "Application" (
   status "ApplicationStatus" not null default 'pending',
   "coverLetter" text,
   "resumeUrl" text,
+  "departmentApprovalRequired" boolean not null default false,
+  "departmentReviewStatus" "DepartmentReviewStatus" not null default 'NOT_REQUIRED',
+  "coordinatorSupportRequested" boolean not null default false,
   "departmentCoordinatorId" text references "User" (id) on delete set null,
   "createdAt" timestamptz not null default now(),
   "updatedAt" timestamptz not null default now()
@@ -160,6 +169,24 @@ create table if not exists "WeeklyLogbookReport" (
 );
 alter table "WeeklyLogbookReport" enable row level security;
 
+-- ---------- SupervisorSummary ----------
+create table if not exists "SupervisorSummary" (
+  id text primary key,
+  "studentId" text not null references "User" (id) on delete cascade,
+  "supervisorId" text not null references "User" (id) on delete cascade,
+  "facultyCoordinatorId" text not null references "User" (id) on delete cascade,
+  "internshipId" text not null references "Internship" (id) on delete cascade,
+  "periodStart" date not null,
+  "periodEnd" date not null,
+  title text not null,
+  summary text not null,
+  "facultyFeedback" text,
+  "facultyFeedbackAt" timestamptz,
+  status text not null default 'SENT',
+  "createdAt" timestamptz not null default now()
+);
+alter table "SupervisorSummary" enable row level security;
+
 -- ---------- Meeting ----------
 create table if not exists "Meeting" (
   id text primary key,
@@ -193,6 +220,24 @@ create table if not exists "SupervisorInvitation" (
   "updatedAt" timestamptz not null default now()
 );
 alter table "SupervisorInvitation" enable row level security;
+
+-- ---------- SupervisorTask ----------
+create table if not exists "SupervisorTask" (
+  id text primary key,
+  title text not null,
+  "studentId" text not null references "User" (id) on delete cascade,
+  "supervisorId" text not null references "User" (id) on delete cascade,
+  "internshipId" text not null references "Internship" (id) on delete cascade,
+  "dueDate" date,
+  priority text not null default 'NORMAL',
+  status text not null default 'PENDING',
+  "studentUpdate" text,
+  "studentUpdatedAt" timestamptz,
+  "completedAt" timestamptz,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now()
+);
+alter table "SupervisorTask" enable row level security;
 
 -- ---------- CoordinatorInvitation ----------
 create table if not exists "CoordinatorInvitation" (
@@ -261,12 +306,21 @@ create table if not exists "StudentInstitutionAffiliation" (
 );
 alter table "StudentInstitutionAffiliation" enable row level security;
 
+drop policy if exists "Students manage own institution affiliation" on "StudentInstitutionAffiliation";
+create policy "Students manage own institution affiliation" on "StudentInstitutionAffiliation"
+  for all using (auth.uid()::text = "studentId")
+  with check (auth.uid()::text = "studentId");
+
 -- ---------- CoordinatorAssignment ----------
 create table if not exists "CoordinatorAssignment" (
   id text primary key,
   "coordinatorId" text not null references "User" (id) on delete cascade,
+  "coordinatorUserId" text,
   role text,
   status text not null default 'PENDING',
+  "scopeType" text not null default 'student-group',
+  "assignedStudentId" text references "User" (id) on delete cascade,
+  "studentId" text references "User" (id) on delete cascade,
   "institutionId" text references "Institution" (id) on delete set null,
   "facultyId" text references "FacultySchool" (id) on delete set null,
   "departmentId" text references "Department" (id) on delete set null,
@@ -343,11 +397,19 @@ create policy "Students read own applications" on "Application"
 
 drop policy if exists "Students create applications" on "Application";
 create policy "Students create applications" on "Application"
-  for insert with check ("studentId" = auth.uid()::text);
+  for insert with check (
+    "studentId" = auth.uid()::text
+    and (
+      ("departmentCoordinatorId" is not null and "departmentApprovalRequired" = true and "departmentReviewStatus" = 'PENDING')
+      or ("departmentCoordinatorId" is null and "departmentApprovalRequired" = false and "departmentReviewStatus" = 'NOT_REQUIRED')
+    )
+  );
 
 drop policy if exists "Recruiters read applications for own internships" on "Application";
 create policy "Recruiters read applications for own internships" on "Application"
   for select using (
+    "departmentReviewStatus" in ('NOT_REQUIRED', 'APPROVED')
+    and
     exists (
       select 1 from "Internship" i
       where i."id" = "Application"."internshipId" and i."recruiterId" = auth.uid()::text
@@ -357,10 +419,29 @@ create policy "Recruiters read applications for own internships" on "Application
 drop policy if exists "Recruiters update own internship applications" on "Application";
 create policy "Recruiters update own internship applications" on "Application"
   for update using (
+    "departmentReviewStatus" in ('NOT_REQUIRED', 'APPROVED')
+    and
     exists (
       select 1 from "Internship" i
       where i."id" = "Application"."internshipId" and i."recruiterId" = auth.uid()::text
     )
+  );
+
+drop policy if exists "Recruiters delete approved applications" on "Application";
+create policy "Recruiters delete approved applications" on "Application"
+  for delete using (
+    "departmentReviewStatus" in ('NOT_REQUIRED', 'APPROVED')
+    and exists (
+      select 1 from "Internship" i
+      where i."id" = "Application"."internshipId" and i."recruiterId" = auth.uid()::text
+    )
+  );
+
+drop policy if exists "Department coordinators delete assigned applications" on "Application";
+create policy "Department coordinators delete assigned applications" on "Application"
+  for delete using (
+    "departmentReviewStatus" = 'PENDING'
+    and "departmentCoordinatorId" = auth.uid()::text
   );
 
 drop policy if exists "Supervisors read applications for assigned internships" on "Application";

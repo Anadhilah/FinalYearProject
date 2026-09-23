@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Users, NotebookPen, MessageCircle, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, FileText, MessageCircle, LogOut, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { useMessages } from "@/contexts/MessagesContext";
 const navItems = [
   { label: "Overview", path: "/supervisor", icon: LayoutDashboard },
   { label: "My Students", path: "/supervisor/students", icon: Users },
-  { label: "Logbook Reviews", path: "/supervisor/logbooks", icon: NotebookPen },
+  { label: "Summaries", path: "/supervisor/summaries", icon: FileText },
   { label: "Messages", path: "/supervisor/messages", icon: MessageCircle },
 ];
 

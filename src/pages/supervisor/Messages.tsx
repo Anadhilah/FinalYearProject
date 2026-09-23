@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMessages } from "@/contexts/MessagesContext";
 import type { ChatConversation } from "@/types/chat";
@@ -17,6 +18,7 @@ export default function SupervisorMessages() {
   } = useMessages();
   const [selected, setSelected] = useState<ChatConversation | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
 
   const handleSelect = (conv: ChatConversation) => {
     setSelected(conv);
@@ -32,6 +34,12 @@ export default function SupervisorMessages() {
     return () => resetSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const conversationId = searchParams.get("conversation");
+    const conversation = conversationId ? conversations.find((item) => item.id === conversationId) : null;
+    if (conversation) handleSelect(conversation);
+  }, [conversations, searchParams]);
 
   return (
     <div className="animate-fade-in">

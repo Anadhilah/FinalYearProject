@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, User, Search, FileText, MessageCircle, Video, NotebookPen, LogOut, Menu, X } from "lucide-react";
+import { ClipboardList, LayoutDashboard, User, Search, FileText, MessageCircle, Video, LogOut, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -15,9 +15,9 @@ const navItems = [
   { label: "My Profile", path: "/student/profile", icon: User },
   { label: "Browse Internships", path: "/student/internships", icon: Search },
   { label: "My Applications", path: "/student/applications", icon: FileText },
+  { label: "Tasks", path: "/student/tasks", icon: ClipboardList },
   { label: "Messages", path: "/student/messages", icon: MessageCircle },
   { label: "Meetings", path: "/student/meetings", icon: Video },
-  { label: "Logbook", path: "/student/logbook", icon: NotebookPen },
 ];
 
 export default function StudentLayout() {

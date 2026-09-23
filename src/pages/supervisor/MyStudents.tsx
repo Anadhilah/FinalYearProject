@@ -1,56 +1,33 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Users, Building2, CalendarRange } from "lucide-react";
-
-const studentAssignments = [
-  {
-    id: "1",
-    name: "Maya Patel",
-    internship: "Frontend Developer Intern",
-    company: "Nexa Labs",
-    department: "Computer Science",
-    status: "On Track",
-    nextReview: "Aug 15, 2026",
-    progress: "76%",
-  },
-  {
-    id: "2",
-    name: "Daniel Okafor",
-    internship: "Systems Intern",
-    company: "Atlas Grid",
-    department: "Engineering",
-    status: "Needs Review",
-    nextReview: "Aug 12, 2026",
-    progress: "58%",
-  },
-  {
-    id: "3",
-    name: "Aisha Bello",
-    internship: "Marketing Intern",
-    company: "BluePeak",
-    department: "Business Administration",
-    status: "On Track",
-    nextReview: "Aug 18, 2026",
-    progress: "64%",
-  },
-  {
-    id: "4",
-    name: "Joseph Mensah",
-    internship: "Operations Intern",
-    company: "Harbor Logistics",
-    department: "Engineering",
-    status: "At Risk",
-    nextReview: "Aug 11, 2026",
-    progress: "42%",
-  },
-];
+import { fetchSupervisorStudents } from "@/services/supabase-api";
 
 export default function SupervisorStudents() {
   const [search, setSearch] = useState("");
+  const [studentAssignments, setStudentAssignments] = useState<Array<{
+    id: string; name: string; internship: string; company: string; department: string; status: string; nextReview: string; progress: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSupervisorStudents().then((rows) => {
+      setStudentAssignments(rows.map(({ student, internships }) => ({
+        id: student.id,
+        name: student.name || "Student",
+        internship: internships[0]?.title || "No internship",
+        company: internships[0]?.company || "Company not provided",
+        department: student.major || "Department not provided",
+        status: "Assigned",
+        nextReview: "Not scheduled",
+        progress: "—",
+      })));
+    }).finally(() => setLoading(false));
+  }, []);
 
   const filtered = studentAssignments.filter(
     (student) =>
@@ -73,7 +50,7 @@ export default function SupervisorStudents() {
 
       <Card className="shadow-card">
         <CardContent className="space-y-3 p-4">
-          {filtered.length === 0 ? (
+          {loading ? <p className="py-10 text-center text-sm text-muted-foreground">Loading assigned students...</p> : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <Users className="h-10 w-10 text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">No interns match your search.</p>

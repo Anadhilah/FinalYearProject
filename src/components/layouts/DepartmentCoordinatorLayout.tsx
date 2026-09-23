@@ -12,7 +12,7 @@ const navItems = [
   { label: "Faculty Coordinators", path: "/department-coordinator/faculty-coordinators", icon: UserPlus },
   { label: "Internship approval", path: "/department-coordinator/internship-approval", icon: ClipboardCheck },
   { label: "Organisations", path: "/department-coordinator/organisations", icon: Building2 },
-  { label: "Reports", path: "/department-coordinator/reports", icon: FileText },
+  { label: "Summaries", path: "/department-coordinator/summaries", icon: FileText },
   { label: "Placements", path: "/department-coordinator/placements", icon: BriefcaseBusiness },
 ];
 

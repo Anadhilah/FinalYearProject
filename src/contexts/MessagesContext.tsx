@@ -100,7 +100,9 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         setSeenMessageIds(ids);
       }
     } catch (err) {
-      console.error("[messages] failed to load conversations", err);
+      if (!(err instanceof Error && err.message === "You must be signed in.")) {
+        console.error("[messages] failed to load conversations", err);
+      }
     } finally {
       setLoading(false);
     }

@@ -18,6 +18,9 @@ import {
   fetchAvailableDepartmentCoordinators,
   createApplication,
   updateApplicationStatus,
+  deleteApplication,
+  fetchRecruiterSupervisors,
+  assignRecruiterSupervisor,
   reviewDepartmentApplication,
   fetchDepartmentCoordinatorStudentsData,
   assignDepartmentStudentFacultyCoordinator,
@@ -75,6 +78,8 @@ export const apiAuthenticationServiceGet = async (url: string): Promise<ApiResul
       return wrap(await fetchDepartmentCoordinatorApplications());
     case url === "/department-coordinators/available":
       return wrap(await fetchAvailableDepartmentCoordinators());
+    case url === "/recruiter/supervisors":
+      return wrap(await fetchRecruiterSupervisors());
     case url === "/department-coordinator/students":
       return wrap(await fetchDepartmentCoordinatorStudentsData());
     case url === "/department-coordinator/organisations":
@@ -274,6 +279,12 @@ export const apiAuthenticationServicePut = async (url: string, data?: unknown): 
       await updateApplicationStatus(id, status);
       return wrap({ success: true });
     }
+    case /^\/recruiter\/internships\/[^/]+\/supervisor$/.test(url): {
+      const internshipId = url.split("/")[3];
+      const { supervisorId } = (data || {}) as { supervisorId: string | null };
+      await assignRecruiterSupervisor(internshipId, supervisorId || null);
+      return wrap({ success: true });
+    }
     case /^\/department-coordinator\/internship-approval\/[^/]+\/review$/.test(url): {
       const id = url.split("/")[3];
       const { decision } = (data || {}) as { decision: "approved" | "rejected" };
@@ -296,6 +307,9 @@ export const apiAuthenticationServicePut = async (url: string, data?: unknown): 
 
 export const apiAuthenticationServiceDelete = async (url: string): Promise<ApiResult> => {
   switch (true) {
+    case /^\/applications-list\/[^/]+$/.test(url):
+      await deleteApplication(url.split("/")[2]);
+      return wrap({ success: true });
     case /^\/internships\/[^/]+$/.test(url):
       await deleteInternship(url.split("/")[2]);
       return wrap({ success: true });

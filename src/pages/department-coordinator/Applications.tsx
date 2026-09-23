@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, X, ClipboardCheck, Building2 } from "lucide-react";
+import { Check, X, ClipboardCheck, Building2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { apiAuthenticationServiceGet, apiAuthenticationServicePut } from "@/services/auth";
+import { apiAuthenticationServiceDelete, apiAuthenticationServiceGet, apiAuthenticationServicePut } from "@/services/auth";
 import { useToast } from "@/hooks/use-toast";
 
 type Application = {
@@ -24,6 +24,7 @@ export default function DepartmentCoordinatorApplications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
@@ -53,6 +54,20 @@ export default function DepartmentCoordinatorApplications() {
       toast({ title: "Review failed", description: (err as { message?: string })?.message || "Unable to update this application.", variant: "destructive" });
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const removeApplication = async (id: string) => {
+    if (!window.confirm("Delete this application? This cannot be undone.")) return;
+    setDeletingId(id);
+    try {
+      await apiAuthenticationServiceDelete(`/applications-list/${id}`);
+      setApplications((current) => current.filter((application) => application.id !== id));
+      toast({ title: "Application deleted", description: "The application was removed." });
+    } catch (err) {
+      toast({ title: "Delete failed", description: (err as { message?: string })?.message || "Unable to delete this application.", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -112,8 +127,11 @@ export default function DepartmentCoordinatorApplications() {
                           <Button size="sm" onClick={() => void review(application.id, "approved")} disabled={updatingId === application.id}>
                             <Check className="mr-1.5 h-4 w-4" /> Approve
                           </Button>
-                          <Button size="sm" variant="destructive" onClick={() => void review(application.id, "rejected")} disabled={updatingId === application.id}>
+                          <Button size="sm" variant="destructive" onClick={() => void review(application.id, "rejected")} disabled={updatingId === application.id || deletingId === application.id}>
                             <X className="mr-1.5 h-4 w-4" /> Reject
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => void removeApplication(application.id)} disabled={updatingId === application.id || deletingId === application.id} title="Delete application">
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>

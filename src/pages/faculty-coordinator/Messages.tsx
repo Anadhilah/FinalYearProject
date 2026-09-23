@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMessages } from "@/contexts/MessagesContext";
 import type { ChatConversation } from "@/types/chat";
@@ -10,6 +11,7 @@ export default function FacultyCoordinatorMessages() {
   const { user } = useAuth();
   const { conversations, loading, selectConversation, resetSelection, sendMessage } = useMessages();
   const [selected, setSelected] = useState<ChatConversation | null>(null);
+  const [searchParams] = useSearchParams();
 
   const handleSelect = (conversation: ChatConversation) => {
     setSelected(conversation);
@@ -22,6 +24,12 @@ export default function FacultyCoordinatorMessages() {
   };
 
   useEffect(() => () => resetSelection(), [resetSelection]);
+
+  useEffect(() => {
+    const conversationId = searchParams.get("conversation");
+    const conversation = conversationId ? conversations.find((item) => item.id === conversationId) : null;
+    if (conversation) handleSelect(conversation);
+  }, [conversations, searchParams]);
 
   return (
     <div className="animate-fade-in">

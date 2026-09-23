@@ -196,6 +196,25 @@ export async function updateInternship(id: string, payload: Record<string, unkno
   throwIfError(error, "Failed to update internship");
 }
 
+export async function fetchRecruiterSupervisors(): Promise<Array<{ id: string; name: string; email: string }>> {
+  const { data, error } = await supabase
+    .from(TABLES.USER)
+    .select("id, name, email")
+    .eq("role", "SUPERVISOR")
+    .eq("suspended", false)
+    .order("name", { ascending: true });
+  throwIfError(error, "Failed to load company supervisors");
+  return ((data || []) as Array<{ id: string; name?: string | null; email: string }>).map((supervisor) => ({
+    id: supervisor.id,
+    name: supervisor.name || "Company Supervisor",
+    email: supervisor.email,
+  }));
+}
+
+export async function assignRecruiterSupervisor(internshipId: string, supervisorId: string | null): Promise<void> {
+  await updateInternship(internshipId, { supervisorId });
+}
+
 /** Deletes an internship. */
 export async function deleteInternship(id: string): Promise<void> {
   const { error } = await supabase.from(TABLES.INTERNSHIP).delete().eq("id", id);
@@ -224,6 +243,7 @@ export interface Application {
   internship?: {
     id?: string;
     title?: string | null;
+    supervisorId?: string | null;
     description?: string | null;
     location?: string | null;
     applicationDeadline?: string | null;
@@ -257,7 +277,7 @@ export async function fetchMyApplications(): Promise<Application[]> {
   let query = supabase
     .from(TABLES.APPLICATION)
     .select(
-      "*, internship:internshipId(id, title, location, description, applicationDeadline, startDate, endDate, recruiter:recruiterId(name, company)), student:studentId(id, name, email, phoneNumber, university, major, cvUrl)"
+      "*, internship:internshipId(id, title, location, description, applicationDeadline, startDate, endDate, supervisorId, supervisor:supervisorId(id, name), recruiter:recruiterId(name, company)), student:studentId(id, name, email, phoneNumber, university, major, cvUrl)"
     )
     .order("createdAt", { ascending: false });
 
@@ -656,7 +676,7 @@ function studentMatchesFacultyCoordinatorScope(
 }
 
 export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoordinatorOverviewData> {
-  const [scopeFilters, affiliationsResult, usersResult, internshipsResult, applicationsResult, logbooksResult] = await Promise.all([
+  const [scopeFilters, affiliationsResult, usersResult, internshipsResult, applicationsResult, tasksResult, summariesResult] = await Promise.all([
     getFacultyCoordinatorScopeFilters(),
     supabase
       .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
@@ -675,22 +695,22 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
         "id, studentId, internshipId, status, createdAt, student:studentId(id, name, email, major, university), internship:internshipId(id, title, location, type, recruiter:recruiterId(name, company), supervisor:supervisorId(name))"
       )
       .order("createdAt", { ascending: false }),
-    supabase
-      .from(TABLES.LOGBOOK_REPORT)
-      .select("id, studentId, internshipId, weekNumber, status, createdAt, student:studentId(id, name, email, major, university)")
-      .order("createdAt", { ascending: false }),
+    supabase.from("SupervisorTask").select("id, studentId, internshipId, status, studentUpdate, updatedAt, student:studentId(name), internship:internshipId(title)"),
+    supabase.from("SupervisorSummary").select("id, studentId, title, summary, createdAt, facultyFeedback, student:studentId(name)").order("createdAt", { ascending: false }),
   ]);
 
   throwIfError(affiliationsResult.error, "Failed to load affiliations for faculty overview");
   throwIfError(usersResult.error, "Failed to load users for faculty overview");
   throwIfError(internshipsResult.error, "Failed to load internships for faculty overview");
   throwIfError(applicationsResult.error, "Failed to load applications for faculty overview");
-  throwIfError(logbooksResult.error, "Failed to load logbooks for faculty overview");
+  throwIfError(tasksResult.error, "Failed to load tasks for faculty overview");
+  throwIfError(summariesResult.error, "Failed to load summaries for faculty overview");
 
   const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
   const internships = (internshipsResult.data as Array<Record<string, unknown>> | null) || [];
   const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
-  const logbooks = (logbooksResult.data as Array<Record<string, unknown>> | null) || [];
+  const tasks = (tasksResult.data as Array<Record<string, unknown>> | null) || [];
+  const summaries = (summariesResult.data as Array<Record<string, unknown>> | null) || [];
   const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
 
   const allowedStudentIds = scopeFilters.hasSpecificScope
@@ -706,9 +726,8 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
   const scopedApplications = allowedStudentIds
     ? applications.filter((application) => allowedStudentIds.has(String(application.studentId || "")))
     : applications;
-  const scopedLogbooks = allowedStudentIds
-    ? logbooks.filter((logbook) => allowedStudentIds.has(String(logbook.studentId || "")))
-    : logbooks;
+  const scopedTasks = allowedStudentIds ? tasks.filter((task) => allowedStudentIds.has(String(task.studentId || ""))) : tasks;
+  const scopedSummaries = allowedStudentIds ? summaries.filter((summary) => allowedStudentIds.has(String(summary.studentId || ""))) : summaries;
   const allowedInternshipIds = new Set(
     scopedApplications.map((application) => String(application.internshipId || "")).filter(Boolean)
   );
@@ -761,18 +780,12 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
 
   const placedStudentIds = new Set(placedApplications.map((application) => String(application.studentId || "")).filter(Boolean));
 
-  const dueReports = scopedLogbooks.filter((logbook) => {
-    const normalized = normalizeOverviewStatus(String(logbook.status || ""));
-    return normalized.includes("DRAFT") || normalized.includes("SUBMITTED") || normalized.includes("PENDING");
-  });
+  const openTasks = scopedTasks.filter((task) => String(task.status || "").toUpperCase() !== "COMPLETED");
 
   const attentionStudentIds = new Set(
-    scopedLogbooks
-      .filter((logbook) => {
-        const normalized = normalizeOverviewStatus(String(logbook.status || ""));
-        return normalized.includes("CHANGES_REQUESTED") || normalized.includes("REQUESTED_CHANGES") || normalized.includes("PENDING");
-      })
-      .map((logbook) => String(logbook.studentId || ""))
+    scopedTasks
+      .filter((task) => task.studentUpdate)
+      .map((task) => String(task.studentId || ""))
       .filter(Boolean)
   );
 
@@ -804,32 +817,27 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
     .sort((a, b) => new Date(b.createdAt as string | undefined || 0).getTime() - new Date(a.createdAt as string | undefined || 0).getTime())
     .slice(0, 4)
     .map((application) => {
-      const report = [...scopedLogbooks]
-        .sort((a, b) => new Date(b.createdAt as string | undefined || 0).getTime() - new Date(a.createdAt as string | undefined || 0).getTime())[0];
+      const task = [...scopedTasks]
+        .filter((item) => String(item.studentId || "") === String(application.studentId || ""))
+        .sort((a, b) => new Date(b.updatedAt as string | undefined || 0).getTime() - new Date(a.updatedAt as string | undefined || 0).getTime())[0];
 
       return {
         name: String((application.student as { name?: string | null } | null)?.name || "Student"),
         organisation: String((application.internship as { recruiter?: { company?: string | null } | null } | null)?.recruiter?.company || "Unassigned"),
         companySupervisor: String((application.internship as { supervisor?: { name?: string | null } | null } | null)?.supervisor?.name || "Unassigned"),
         status: placementStatusFromApplication(String(application.status || "")),
-        lastReport: report ? `Week ${report.weekNumber ?? 1} ${normalizeOverviewStatus(String(report.status || "")).includes("APPROVED") ? "submitted" : "pending"}` : "No recent report",
+        lastReport: task?.studentUpdate ? "Student update received" : task ? "Task activity available" : "No task activity",
       };
     });
 
-  const recentFeedback = [...scopedLogbooks]
-    .filter((logbook) => {
-      const normalized = normalizeOverviewStatus(String(logbook.status || ""));
-      return normalized.includes("CHANGES_REQUESTED") || normalized.includes("REQUESTED_CHANGES") || normalized.includes("PENDING");
-    })
+  const recentFeedback = [...scopedSummaries]
+    .filter((summary) => summary.facultyFeedback)
     .sort((a, b) => new Date(b.createdAt as string | undefined || 0).getTime() - new Date(a.createdAt as string | undefined || 0).getTime())
     .slice(0, 3)
-    .map((logbook) => ({
-      student: String((logbook.student as { name?: string | null } | null)?.name || "Student"),
-      message:
-        normalizeOverviewStatus(String(logbook.status || "")).includes("CHANGES_REQUESTED") || normalizeOverviewStatus(String(logbook.status || "")).includes("REQUESTED_CHANGES")
-          ? `Supervisor requested changes to Week ${logbook.weekNumber ?? 1} logbook.`
-          : `Weekly report is awaiting review for Week ${logbook.weekNumber ?? 1}.`,
-      date: formatOverviewDate(String(logbook.createdAt || "")),
+    .map((summary) => ({
+      student: String((summary.student as { name?: string | null } | null)?.name || "Student"),
+      message: String(summary.facultyFeedback || "Supervisor summary received."),
+      date: formatOverviewDate(String(summary.createdAt || "")),
     }));
 
   return {
@@ -855,14 +863,14 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
         description: "Applications awaiting a decision",
       },
       {
-        title: "Logbooks Pending",
-        value: dueReports.length,
-        description: "Reports awaiting submission or review",
+        title: "Open Tasks",
+        value: openTasks.length,
+        description: "Tasks still in progress",
       },
       {
         title: "Needs Attention",
         value: attentionStudentIds.size,
-        description: "Students with logbook follow-up needed",
+        description: "Students with task updates to review",
       },
     ],
     internshipStats: [
@@ -899,8 +907,8 @@ export async function fetchFacultyCoordinatorOverviewData(): Promise<FacultyCoor
       },
       {
         title: "Report submissions due",
-        count: dueReports.length,
-        detail: "Students yet to submit or complete weekly reports",
+        count: openTasks.length,
+        detail: "Tasks awaiting completion",
       },
     ],
     internshipReports,
@@ -931,35 +939,26 @@ export async function fetchDepartmentCoordinatorStudentsData(): Promise<{
   students: DepartmentCoordinatorStudentRow[];
   facultyCoordinators: DepartmentCoordinatorFacultyCoordinatorOption[];
 }> {
-  const [scopeFilters, affiliationsResult, usersResult, applicationsResult, internshipsResult, coordinatorsResult, assignmentsResult] = await Promise.all([
-    getDepartmentCoordinatorScopeFilters(),
-    supabase.from(TABLES.STUDENT_INSTITUTION_AFFILIATION).select("studentId, institutionId, facultyId, departmentId"),
-    supabase.from(TABLES.USER).select("id, name, email, role").order("createdAt", { ascending: false }),
+  const { data: authUser } = await supabase.auth.getUser();
+  if (!authUser?.user?.id) throw new Error("You must be signed in.");
+
+  const [applicationsResult, coordinatorsResult, assignmentsResult] = await Promise.all([
     supabase
       .from(TABLES.APPLICATION)
       .select(
-        "id, studentId, internshipId, status, departmentApprovalRequired, createdAt, student:studentId(id, name), internship:internshipId(id, title, recruiter:recruiterId(name, company), supervisor:supervisorId(id, name))"
+        "id, studentId, internshipId, status, departmentApprovalRequired, departmentCoordinatorId, createdAt, student:studentId(id, name, email), internship:internshipId(id, title, recruiter:recruiterId(name, company), supervisor:supervisorId(id, name))"
       )
-      .order("createdAt", { ascending: false }),
-    supabase
-      .from(TABLES.INTERNSHIP)
-      .select("id, title, status, recruiterId, supervisorId, recruiter:recruiterId(name, company), supervisor:supervisorId(id, name)")
+      .eq("departmentCoordinatorId", authUser.user.id)
       .order("createdAt", { ascending: false }),
     supabase.from(TABLES.USER).select("id, name, email, role").eq("role", "FACULTY_COORDINATOR").order("name", { ascending: true }),
     supabase.from(TABLES.COORDINATOR_ASSIGNMENT).select("id, studentId, coordinatorId, role, status, institutionId, facultyId, departmentId").eq("role", "Faculty Coordinator").order("createdAt", { ascending: false }),
   ]);
 
-  throwIfError(affiliationsResult.error, "Failed to load affiliations for department students");
-  throwIfError(usersResult.error, "Failed to load students for department coordinator");
   throwIfError(applicationsResult.error, "Failed to load applications for department coordinator");
-  throwIfError(internshipsResult.error, "Failed to load internships for department coordinator");
   throwIfError(coordinatorsResult.error, "Failed to load faculty coordinators for department coordinator");
   throwIfError(assignmentsResult.error, "Failed to load student coordinator assignments");
 
-  const users = (usersResult.data as Array<Record<string, unknown>> | null) || [];
   const applications = (applicationsResult.data as Array<Record<string, unknown>> | null) || [];
-  const internships = (internshipsResult.data as Array<Record<string, unknown>> | null) || [];
-  const affiliations = (affiliationsResult.data as Array<Record<string, unknown>> | null) || [];
   const coordinators = (coordinatorsResult.data as Array<Record<string, unknown>> | null) || [];
   const assignments = (assignmentsResult.data as Array<Record<string, unknown>> | null) || [];
   const coordinatorById = new Map(
@@ -971,32 +970,17 @@ export async function fetchDepartmentCoordinatorStudentsData(): Promise<{
       .map((assignment) => [String(assignment.studentId || ""), assignment])
   );
 
-  const allowedStudentIds = scopeFilters.hasSpecificScope
-    ? new Set(
-        affiliations
-          .filter((affiliation) => studentMatchesFacultyCoordinatorScope(affiliation, scopeFilters))
-          .map((affiliation) => String(affiliation.studentId || ""))
-          .filter(Boolean)
-      )
-    : null;
-
-  const scopedUsers = allowedStudentIds ? users.filter((user) => allowedStudentIds.has(String(user.id || ""))) : users;
-  const scopedApplications = allowedStudentIds
-    ? applications.filter((application) => allowedStudentIds.has(String(application.studentId || "")))
-    : applications;
-
-  const students = scopedUsers.filter((user) => normalizeOverviewStatus(String(user.role || "")).includes("STUDENT"));
   const latestApplicationByStudentId = new Map<string, Record<string, unknown>>();
-  for (const application of scopedApplications) {
+  for (const application of applications) {
     const studentId = String(application.studentId || "");
     if (studentId && !latestApplicationByStudentId.has(studentId)) {
       latestApplicationByStudentId.set(studentId, application);
     }
   }
 
-  const rows = students.map((studentRecord) => {
-    const studentId = String(studentRecord.id || "");
-    const application = latestApplicationByStudentId.get(studentId);
+  const rows = Array.from(latestApplicationByStudentId.values()).map((application) => {
+    const studentRecord = (application.student as Record<string, unknown> | null) || {};
+    const studentId = String(application.studentId || "");
     const student = studentRecord as { name?: string | null };
     const internship = application?.internship as { id?: string | null; title?: string | null; recruiter?: { company?: string | null } | null } | null;
     const assignment = assignmentByStudentId.get(studentId);
@@ -1029,15 +1013,6 @@ export async function fetchDepartmentCoordinatorStudentsData(): Promise<{
 }
 
 export async function assignDepartmentStudentFacultyCoordinator(studentId: string, coordinatorId: string | null): Promise<void> {
-  const { data: affiliation, error: affiliationError } = await supabase
-    .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
-    .select("institutionId, facultyId, departmentId")
-    .eq("studentId", studentId)
-    .eq("isPrimary", true)
-    .maybeSingle();
-  throwIfError(affiliationError, "Failed to load student affiliation");
-  if (!affiliation) throw new Error("This student has no institution affiliation.");
-
   const { error: deleteError } = await supabase
     .from(TABLES.COORDINATOR_ASSIGNMENT)
     .delete()
@@ -1051,12 +1026,15 @@ export async function assignDepartmentStudentFacultyCoordinator(studentId: strin
   const { error } = await supabase.from(TABLES.COORDINATOR_ASSIGNMENT).insert({
     id: newId(),
     studentId,
+    assignedStudentId: studentId,
     coordinatorId,
+    coordinatorUserId: coordinatorId,
+    scopeType: "student-group",
     role: "Faculty Coordinator",
     status: "ACTIVE",
-    institutionId: affiliation.institutionId,
-    facultyId: affiliation.facultyId,
-    departmentId: affiliation.departmentId,
+    institutionId: null,
+    facultyId: null,
+    departmentId: null,
     assignedById: (await supabase.auth.getUser()).data.user?.id || null,
     createdAt: now,
     updatedAt: now,
@@ -1951,7 +1929,7 @@ export async function createApplication(payload: {
   // Every affiliated student must pass department review before an organisation
   // can see the application. Coordinator support is optional, but it must not
   // bypass the institutional review gate.
-  const requiresDepartmentReview = Boolean(affiliation);
+  const requiresDepartmentReview = Boolean(affiliation) || Boolean(payload.departmentCoordinatorId);
   if (payload.departmentCoordinatorId && !(await isAvailableDepartmentCoordinator(payload.departmentCoordinatorId))) {
     throw new Error("The selected department coordinator is not available.");
   }
@@ -2035,6 +2013,18 @@ export async function updateApplicationStatus(id: string, status: string): Promi
     })
     .eq("id", id);
   throwIfError(error, "Failed to update application status");
+}
+
+/** Deletes an application when the caller is authorized by the database policy. */
+export async function deleteApplication(id: string): Promise<void> {
+  const { data, error } = await supabase.rpc("delete_application", {
+    p_application_id: id,
+  });
+  throwIfError(error, "Failed to delete application");
+  const result = (data || {}) as { success?: boolean; message?: string };
+  if (!result.success) {
+    throw new Error(result.message || "You are not authorized to delete this application.");
+  }
 }
 
 export interface DepartmentCoordinatorApplication {
@@ -2438,6 +2428,8 @@ export async function createCoordinatorAssignment(payload: {
   const { error } = await supabase.from(TABLES.COORDINATOR_ASSIGNMENT).insert({
     id: newId(),
     coordinatorId: payload.coordinatorId,
+    coordinatorUserId: payload.coordinatorId,
+    scopeType: payload.coordinatorId ? "student-group" : "department",
     role: payload.role || "Faculty Coordinator",
     status: payload.status || "PENDING",
     institutionId: payload.institutionId || null,
@@ -3051,7 +3043,7 @@ export async function resendSupervisorInvitation(payload: {
 export async function fetchSupervisorStudents(): Promise<
   Array<{
     student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null };
-    internships: Array<{ id: string; title: string }>;
+    internships: Array<{ id: string; title: string; company?: string | null }>;
   }>
 > {
   const { data: user } = await supabase.auth.getUser();
@@ -3067,7 +3059,7 @@ export async function fetchSupervisorStudents(): Promise<
     .in("internshipId", ids);
   if (error) throw new Error("Failed to load your students.");
 
-  const byStudent = new Map<string, { student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null }; internships: Array<{ id: string; title: string }> }>();
+  const byStudent = new Map<string, { student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null }; internships: Array<{ id: string; title: string; company?: string | null }> }>();
   const rows = (data as unknown as Array<{
     studentId: string;
     internshipId: string;
@@ -3079,10 +3071,181 @@ export async function fetchSupervisorStudents(): Promise<
     const entry = byStudent.get(studentRow.id) || { student: studentRow, internships: [] };
     const internship = internships.find((i) => i.id === row.internshipId);
     if (internship && !entry.internships.some((x) => x.id === internship.id)) {
-      entry.internships.push({ id: internship.id, title: internship.title });
+      entry.internships.push({ id: internship.id, title: internship.title, company: internship.recruiter?.company || null });
     }
     byStudent.set(studentRow.id, entry);
   }
   return Array.from(byStudent.values());
+}
+
+export interface SupervisorTask {
+  id: string;
+  title: string;
+  studentId: string;
+  supervisorId: string;
+  internshipId: string;
+  dueDate?: string | null;
+  priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  status: string;
+  studentUpdate?: string | null;
+  studentUpdatedAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
+  internship?: { title?: string | null; recruiter?: { company?: string | null } | null } | null;
+}
+
+export async function fetchSupervisorTasks(studentId: string): Promise<SupervisorTask[]> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { data, error } = await supabase.from("SupervisorTask").select("*, internship:internshipId(title, recruiter:recruiterId(company))").eq("studentId", studentId).eq("supervisorId", user.user.id).order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load assigned tasks");
+  return (data as SupervisorTask[]) || [];
+}
+
+export async function createSupervisorTask(payload: { title: string; studentId: string; internshipId: string; dueDate?: string | null; priority?: SupervisorTask["priority"] }): Promise<SupervisorTask> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const now = new Date().toISOString();
+  const { data, error } = await supabase.from("SupervisorTask").insert({ id: newId(), title: payload.title.trim(), studentId: payload.studentId, supervisorId: user.user.id, internshipId: payload.internshipId, dueDate: payload.dueDate || null, priority: payload.priority || "NORMAL", status: "PENDING", createdAt: now, updatedAt: now }).select("*").single();
+  throwIfError(error, "Failed to assign task");
+  return data as SupervisorTask;
+}
+
+export async function completeSupervisorTask(taskId: string): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { error } = await supabase.from("SupervisorTask").update({ status: "COMPLETED", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).eq("id", taskId).eq("supervisorId", user.user.id);
+  throwIfError(error, "Failed to complete task");
+}
+
+export async function updateSupervisorTask(taskId: string, payload: { title: string; dueDate?: string | null; priority?: SupervisorTask["priority"] }): Promise<SupervisorTask> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { data, error } = await supabase.from("SupervisorTask").update({
+    title: payload.title.trim(),
+    dueDate: payload.dueDate || null,
+    priority: payload.priority || "NORMAL",
+    updatedAt: new Date().toISOString(),
+  }).eq("id", taskId).eq("supervisorId", user.user.id).select("*").single();
+  throwIfError(error, "Failed to update task");
+  return data as SupervisorTask;
+}
+
+export async function deleteSupervisorTask(taskId: string): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { error } = await supabase.from("SupervisorTask").delete().eq("id", taskId).eq("supervisorId", user.user.id);
+  throwIfError(error, "Failed to delete task");
+}
+
+export async function fetchStudentTasks(): Promise<SupervisorTask[]> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { data, error } = await supabase
+    .from("SupervisorTask")
+    .select("*, internship:internshipId(title, recruiter:recruiterId(company)), supervisor:supervisorId(name)")
+    .eq("studentId", user.user.id)
+    .order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load assigned tasks");
+  return (data as SupervisorTask[]) || [];
+}
+
+export async function updateStudentTask(taskId: string, studentUpdate: string): Promise<SupervisorTask> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { data, error } = await supabase
+    .from("SupervisorTask")
+    .update({ studentUpdate: studentUpdate.trim(), studentUpdatedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    .eq("id", taskId)
+    .eq("studentId", user.user.id)
+    .select("*")
+    .single();
+  throwIfError(error, "Failed to send task update");
+  return data as SupervisorTask;
+}
+
+export async function completeStudentTask(taskId: string): Promise<SupervisorTask> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { data, error } = await supabase.from("SupervisorTask").update({ status: "COMPLETED", "completedAt": new Date().toISOString(), updatedAt: new Date().toISOString() }).eq("id", taskId).eq("studentId", user.user.id).select("*").single();
+  throwIfError(error, "Failed to complete task");
+  return data as SupervisorTask;
+}
+
+export interface SupervisorSummaryTarget {
+  studentId: string;
+  studentName: string;
+  internshipId: string;
+  internshipTitle: string;
+  facultyCoordinatorId: string;
+  facultyCoordinatorName: string;
+}
+
+export interface SupervisorSummary {
+  id: string;
+  studentId: string;
+  studentName?: string | null;
+  internshipTitle?: string | null;
+  facultyCoordinatorName?: string | null;
+  facultyCoordinatorId?: string | null;
+  supervisorId: string;
+  supervisorName?: string | null;
+  periodStart: string;
+  periodEnd: string;
+  title: string;
+  summary: string;
+  facultyFeedback?: string | null;
+  facultyFeedbackAt?: string | null;
+  status: string;
+  createdAt?: string | null;
+}
+
+export async function fetchSupervisorSummaryTargets(): Promise<SupervisorSummaryTarget[]> {
+  const students = await fetchSupervisorStudents();
+  const studentIds = students.map((row) => row.student.id);
+  if (!studentIds.length) return [];
+  const { data: assignments, error } = await supabase.from(TABLES.COORDINATOR_ASSIGNMENT).select("studentId, coordinatorId").in("studentId", studentIds).eq("role", "Faculty Coordinator").eq("status", "ACTIVE");
+  throwIfError(error, "Failed to load faculty coordinator assignments");
+  const coordinatorIds = Array.from(new Set((assignments || []).map((row) => String(row.coordinatorId || "")).filter(Boolean)));
+  const { data: coordinators, error: coordinatorError } = await supabase.from(TABLES.USER).select("id, name").in("id", coordinatorIds.length ? coordinatorIds : ["__none__"]);
+  throwIfError(coordinatorError, "Failed to load faculty coordinators");
+  const names = new Map((coordinators || []).map((row) => [String(row.id), String(row.name || "Faculty Coordinator")]));
+  const assignmentByStudent = new Map((assignments || []).map((row) => [String(row.studentId), String(row.coordinatorId || "")]));
+  return students.flatMap((row) => {
+    const assignment = assignmentByStudent.get(row.student.id);
+    const internship = row.internships[0];
+    if (!assignment || !internship) return [];
+    return [{ studentId: row.student.id, studentName: row.student.name || "Student", internshipId: internship.id, internshipTitle: internship.title, facultyCoordinatorId: assignment, facultyCoordinatorName: names.get(assignment) || "Faculty Coordinator" }];
+  });
+}
+
+export async function sendSupervisorSummary(payload: { target: SupervisorSummaryTarget; periodStart: string; periodEnd: string; title: string; summary: string }): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user?.id) throw new Error("You must be signed in.");
+  const { error } = await supabase.from("SupervisorSummary").insert({ id: newId(), studentId: payload.target.studentId, supervisorId: user.user.id, facultyCoordinatorId: payload.target.facultyCoordinatorId, internshipId: payload.target.internshipId, periodStart: payload.periodStart, periodEnd: payload.periodEnd, title: payload.title, summary: payload.summary, status: "SENT" });
+  throwIfError(error, "Failed to send supervisor summary");
+}
+
+export async function fetchFacultyCoordinatorSummaries(): Promise<SupervisorSummary[]> {
+  const { data, error } = await supabase.from("SupervisorSummary").select("*, student:studentId(name), internship:internshipId(title), facultyCoordinator:facultyCoordinatorId(name), supervisor:supervisorId(name)").order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load supervisor summaries");
+  return ((data || []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), studentId: String(row.studentId), supervisorId: String(row.supervisorId), facultyCoordinatorId: String(row.facultyCoordinatorId || "") || null, studentName: (row.student as { name?: string } | null)?.name, internshipTitle: (row.internship as { title?: string } | null)?.title, facultyCoordinatorName: (row.facultyCoordinator as { name?: string } | null)?.name, supervisorName: (row.supervisor as { name?: string } | null)?.name, periodStart: String(row.periodStart), periodEnd: String(row.periodEnd), title: String(row.title), summary: String(row.summary), facultyFeedback: row.facultyFeedback as string | null, facultyFeedbackAt: row.facultyFeedbackAt as string | null, status: String(row.status), createdAt: row.createdAt as string | null }));
+}
+
+export async function fetchSupervisorSummaries(): Promise<SupervisorSummary[]> {
+  const { data, error } = await supabase.from("SupervisorSummary").select("*, student:studentId(name), internship:internshipId(title), facultyCoordinator:facultyCoordinatorId(name)").order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load sent summaries");
+  return ((data || []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), studentId: String(row.studentId), supervisorId: String(row.supervisorId), facultyCoordinatorId: String(row.facultyCoordinatorId || "") || null, studentName: (row.student as { name?: string } | null)?.name, internshipTitle: (row.internship as { title?: string } | null)?.title, facultyCoordinatorName: (row.facultyCoordinator as { name?: string } | null)?.name, periodStart: String(row.periodStart), periodEnd: String(row.periodEnd), title: String(row.title), summary: String(row.summary), facultyFeedback: row.facultyFeedback as string | null, facultyFeedbackAt: row.facultyFeedbackAt as string | null, status: String(row.status), createdAt: row.createdAt as string | null }));
+}
+
+export async function updateSupervisorSummaryFeedback(summaryId: string, feedback: string): Promise<void> {
+  const { error } = await supabase.from("SupervisorSummary").update({ facultyFeedback: feedback.trim(), facultyFeedbackAt: new Date().toISOString() }).eq("id", summaryId);
+  throwIfError(error, "Failed to send feedback");
+}
+
+export async function fetchDepartmentCoordinatorSummaries(): Promise<SupervisorSummary[]> {
+  const { data, error } = await supabase.from("SupervisorSummary").select("*, student:studentId(name), internship:internshipId(title), facultyCoordinator:facultyCoordinatorId(name), supervisor:supervisorId(name)").order("createdAt", { ascending: false });
+  throwIfError(error, "Failed to load department summaries");
+  return ((data || []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), studentId: String(row.studentId), studentName: (row.student as { name?: string } | null)?.name, internshipTitle: (row.internship as { title?: string } | null)?.title, facultyCoordinatorName: (row.facultyCoordinator as { name?: string } | null)?.name, periodStart: String(row.periodStart), periodEnd: String(row.periodEnd), title: String(row.title), summary: String(row.summary), status: String(row.status), createdAt: row.createdAt as string | null }));
 }
 

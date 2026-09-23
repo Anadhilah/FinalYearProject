@@ -8,9 +8,9 @@ The platform manages the complete internship lifecycle:
 2. Student profiles, CVs, internship discovery, and applications.
 3. Department-level application review and coordinator support.
 4. Recruiter internship management and applicant review.
-5. Company supervisor assignment and weekly logbook review.
-6. Faculty coordinator oversight of assigned students, placements, and approved reports.
-7. Department coordinator oversight of students, organisations, applications, and forwarded reports.
+5. Company supervisor assignment and task-based student progress tracking.
+6. Faculty coordinator oversight of assigned students, placements, supervisor summaries, and feedback.
+7. Department coordinator oversight of students, organisations, applications, and fallback summary visibility.
 8. Real-time messaging, meetings, file uploads, and protected role-specific dashboards.
 
 This repository contains the frontend application and the Supabase database schema, migrations, policies, and Edge Functions required by the system.
@@ -53,7 +53,7 @@ The system currently focuses on:
 
 - Internship discovery and placement management.
 - Application and coordinator review.
-- Weekly logbook submission and multi-stage review.
+- Persistent task assignment, completion, and student progress updates.
 - Faculty and department coordination.
 - User and organisation communication.
 - Meetings and shared report access.
@@ -131,11 +131,11 @@ The database `Role` enum supports the following roles:
 
 | Role | Primary responsibility |
 | --- | --- |
-| Student | Maintain a profile, browse internships, apply, submit logbooks, communicate, and attend meetings. |
-| Recruiter | Manage organisation information and internships, review applicants, review workplace logbooks, and communicate with students. |
+| Student | Maintain a profile, browse internships, apply, manage assigned tasks, communicate, and attend meetings. |
+| Recruiter | Manage organisation information and internships, review applicants, assign company supervisors, and communicate with students. |
 | Supervisor | Monitor assigned internships, review student work, provide supervisor feedback, manage tasks, and communicate. |
-| Faculty Coordinator | Monitor faculty-level placement activity, manage assigned students, accept supervisor-approved logbooks, forward reports to department coordinators, and communicate. |
-| Department Coordinator | Review department applications, manage department students and organisations, assign faculty coordinators or supervisors, and review forwarded reports. |
+| Faculty Coordinator | Monitor faculty-level placement activity, receive supervisor summaries, provide feedback, and communicate with supervisors. |
+| Department Coordinator | Review department applications, manage department students and organisations, assign faculty coordinators, and view routed summaries. |
 | Admin | Manage users, recruiters, internships, coordinators, supervisors, and platform-level requests. |
 
 ## Functional Requirements
@@ -157,8 +157,8 @@ The database `Role` enum supports the following roles:
 - Students must be able to apply to internships.
 - Applications may contain cover letters, CV references, skills, question answers, dates, and department coordinator support information.
 - Students must be able to view application status.
-- Students must be able to create and update weekly logbook reports.
-- Students must be able to view logbook review status and comments.
+- Students must be able to view assigned tasks and send progress updates.
+- Students must be able to mark assigned tasks complete.
 - Students must be able to invite or associate a university supervisor where enabled by the workflow.
 - Students must be able to communicate through conversations and messages.
 - Students must be able to view meetings and shared approved reports.
@@ -170,8 +170,7 @@ The database `Role` enum supports the following roles:
 - Recruiters must be able to create, update, and delete their own internships.
 - Recruiters must be able to view applicants for their internships.
 - Recruiters must be able to review applications and update permitted application statuses.
-- Recruiters must be able to review weekly logbooks for students in their internships.
-- Recruiters must be able to provide comments, approve reports, or request revisions.
+- Recruiters must be able to assign active company supervisors to accepted internship applications.
 - Recruiters must be able to communicate with students.
 - Recruiters must be able to create or manage meetings with students.
 
@@ -187,17 +186,15 @@ The database `Role` enum supports the following roles:
 
 ### Faculty Coordinator Requirements
 
-- Faculty coordinators must see a real-data overview of scoped students, active internships, unplaced students, pending applications, pending logbooks, and students needing attention.
+- Faculty coordinators must see a real-data overview of scoped students, active internships, unplaced students, pending applications, open tasks, and student updates.
 - Faculty coordinators must be able to view departments in their assigned scope.
 - Faculty coordinators must be able to view assigned students as cards.
 - Each assigned-student card must provide a details and management action.
 - Student details must show real profile, department, assignment, placement, supervisor, and report information.
 - Faculty coordinators must be able to start a real conversation with an assigned student.
-- Faculty coordinators must be able to view logbooks that have completed organisation supervisor review.
-- Faculty coordinators must be able to accept eligible reports.
-- Faculty coordinators must be able to select a department coordinator and type a message for forwarding.
-- Faculty coordinators must be able to send the typed message through the real conversation system.
-- Faculty coordinators must be able to forward accepted reports to the department workflow.
+- Faculty coordinators must be able to receive period-based summaries generated from supervisor tasks.
+- Faculty coordinators must be able to send persistent feedback to company supervisors.
+- Faculty coordinators and company supervisors must be able to open direct conversations.
 - Faculty coordinators must be able to refresh displayed data.
 
 ### Department Coordinator Requirements
@@ -208,7 +205,7 @@ The database `Role` enum supports the following roles:
 - Department coordinators must be able to view organisations hosting students.
 - Department coordinators must be able to assign faculty coordinators to eligible students.
 - Department coordinators must be able to assign supervisors where supported by the workflow.
-- Department coordinators must be able to review reports in their scope.
+- Department coordinators must be able to view task-based summaries for their routed students, including students without a faculty assignment.
 - Department coordinators must be able to communicate with faculty coordinators, students, and other permitted participants.
 
 ### Administrator Requirements
@@ -292,7 +289,6 @@ The database `Role` enum supports the following roles:
 | `/register` | Account registration. |
 | `/install` | PWA installation information. |
 | `/change-password` | Authenticated password change. |
-| `/logbook/share/:token` | Shared report view. |
 | `/supervisor/activate/:token` | Supervisor invitation activation. |
 | `/coordinator/activate/:token` | Coordinator activation workflow. |
 
@@ -306,9 +302,9 @@ The database `Role` enum supports the following roles:
 | `/student/internships/:id` | Internship details. |
 | `/student/internships/:id/apply` | Internship application. |
 | `/student/applications` | Student applications. |
+| `/student/tasks` | Assigned tasks and progress updates. |
 | `/student/messages` | Student conversations. |
 | `/student/meetings` | Student meetings. |
-| `/student/logbook` | Student weekly logbooks. |
 
 ### Recruiter Routes
 
@@ -321,7 +317,6 @@ The database `Role` enum supports the following roles:
 | `/recruiter/applicants` | Review applicants. |
 | `/recruiter/messages` | Recruiter conversations. |
 | `/recruiter/meetings` | Recruiter meetings. |
-| `/recruiter/logbooks` | Review student logbooks. |
 
 ### Supervisor Routes
 
@@ -331,7 +326,7 @@ The database `Role` enum supports the following roles:
 | `/supervisor/students` | Assigned students. |
 | `/supervisor/students/:studentId` | Student details. |
 | `/supervisor/students/:studentId/tasks` | Student tasks. |
-| `/supervisor/logbooks` | Supervisor logbook review. |
+| `/supervisor/summaries` | Generate task-based summaries and send them to faculty coordinators. |
 | `/supervisor/messages` | Supervisor conversations. |
 
 ### Faculty Coordinator Routes
@@ -340,7 +335,7 @@ The database `Role` enum supports the following roles:
 | --- | --- |
 | `/faculty-coordinator` | Faculty overview. |
 | `/faculty-coordinator/departments` | Faculty-scoped departments. |
-| `/faculty-coordinator/reports` | Supervisor-approved report acceptance and forwarding. |
+| `/faculty-coordinator/reports` | Receive supervisor summaries, send feedback, and message supervisors. |
 | `/faculty-coordinator/messages` | Faculty coordinator conversations. |
 | `/faculty-coordinator/students` | Assigned student cards. |
 | `/faculty-coordinator/students/:studentId` | Student details and management actions. |
@@ -355,7 +350,7 @@ The database `Role` enum supports the following roles:
 | `/department-coordinator/students` | Department students. |
 | `/department-coordinator/faculty-coordinators` | Faculty coordinator assignments. |
 | `/department-coordinator/organisations` | Hosting organisations. |
-| `/department-coordinator/reports` | Department report view. |
+| `/department-coordinator/summaries` | View summaries for routed students, including fallback visibility. |
 | `/department-coordinator/placements` | Department placement view. |
 
 ## Core Workflows
@@ -378,24 +373,16 @@ The database `Role` enum supports the following roles:
 5. After department approval, the application can continue to organisation review.
 6. Recruiters update the application through permitted statuses.
 
-### Weekly Logbook Review
+### Task-Based Progress Reporting
 
-The intended multi-stage report workflow is:
-
-```text
-Student submits
-	-> PENDING_RECRUITER_REVIEW / SUBMITTED
-	-> Recruiter review
-	-> RECRUITER_APPROVED or RECRUITER_CHANGES_REQUESTED
-	-> Supervisor review
-	-> SUPERVISOR_APPROVED or SUPERVISOR_CHANGES_REQUESTED
-	-> Faculty coordinator acceptance
-	-> APPROVED
-	-> Forward to department coordinator
-	-> COMPLETED
-```
-
-The exact available statuses depend on the applied database migrations. The frontend uses the status constants in [src/lib/logbookStatus.ts](src/lib/logbookStatus.ts).
+1. A recruiter assigns an active company supervisor to an accepted internship.
+2. The supervisor assigns tasks to the student with a due date and priority.
+3. The student views tasks from the Tasks tab, sends progress updates, and marks work complete.
+4. The supervisor reviews task completion and student updates.
+5. The supervisor generates a summary for this week, this month, or last month.
+6. The summary is sent to the assigned faculty coordinator.
+7. The faculty coordinator sends feedback and can open a direct conversation with the supervisor.
+8. Department coordinators can view summaries for their routed students when no faculty assignment exists.
 
 ### Faculty Coordinator Assignment
 
@@ -439,12 +426,6 @@ The canonical schema is [supabase/schema.sql](supabase/schema.sql). The database
 
 `pending`, `accepted`, `rejected`, `reviewing`.
 
-#### `LogbookStatus`
-
-The schema supports `DRAFT`, `SUBMITTED`, `PENDING_RECRUITER_REVIEW`, `RECRUITER_CHANGES_REQUESTED`, `RECRUITER_APPROVED`, `PENDING_SUPERVISOR_REVIEW`, `SUPERVISOR_CHANGES_REQUESTED`, `SUPERVISOR_APPROVED`, `COMPLETED`, `APPROVED`, and `REQUESTED_CHANGES`.
-
-Some deployed databases may use the enum name `LogbookReportStatus` instead of `LogbookStatus`. The faculty logbook migration detects both names before adding workflow values.
-
 ### Main Tables
 
 | Table | Purpose | Important relationships |
@@ -456,7 +437,8 @@ Some deployed databases may use the enum name `LogbookReportStatus` instead of `
 | `StudentInstitutionAffiliation` | Connects a student to an institution, faculty, and department. | References `User`, `Institution`, `FacultySchool`, and `Department`. |
 | `Internship` | Internship opportunity posted by a recruiter. | References recruiter and optional company supervisor. |
 | `Application` | Student application for an internship. | References student, internship, and optional department coordinator. |
-| `WeeklyLogbookReport` | Student weekly progress report and review state. | References student, internship, and reviewer. |
+| `SupervisorTask` | Persistent task assignment, completion, priority, and student update. | References student, supervisor, and internship. |
+| `SupervisorSummary` | Period-based supervisor summary and faculty feedback. | References student, supervisor, faculty coordinator, and internship. |
 | `CoordinatorAssignment` | Institution, faculty, department, or direct student coordinator assignment. | References coordinator, assigning user, student scope, and academic scope. |
 | `Conversation` | Chat container and last activity timestamp. | Has many participants and messages. |
 | `ConversationParticipant` | User membership in a conversation. | References conversation and user. |
@@ -476,7 +458,8 @@ Institution
 User (recruiter)
 	-> Internship
 			-> Application <- User (student)
-			-> WeeklyLogbookReport <- User (student)
+			-> SupervisorTask <- User (student)
+			-> SupervisorSummary <- User (student)
 			-> User (supervisor)
 
 User (coordinator)
@@ -507,14 +490,18 @@ Conversation
 - `departmentReviewStatus`, `departmentApprovalRequired`, and `coordinatorSupportRequested`: workflow fields added by migrations.
 - `resumeUrl`, `coverLetterUrl`, `coverLetter`, and question-answer fields: submitted application data.
 
-#### `WeeklyLogbookReport`
+#### `SupervisorTask`
 
-- `studentId`, `internshipId`, `weekNumber`: report identity.
-- `startDate`, `endDate`, `tasksPerformed`, `skillsLearned`, `challengesFaced`, `hoursWorked`: weekly content.
-- `status`: multi-stage workflow state.
-- `recruiterComment`, `supervisorComment`: review feedback.
-- `reviewedById`, `reviewedAt`: review audit fields.
-- `shareToken`, `sharedAt`: controlled shared report access.
+- `studentId`, `supervisorId`, `internshipId`: assignment ownership.
+- `title`, `dueDate`, `priority`, `status`: task workflow fields.
+- `studentUpdate`, `studentUpdatedAt`: progress communication from the student.
+- `completedAt`: completion timestamp.
+
+#### `SupervisorSummary`
+
+- `periodStart`, `periodEnd`, `title`, `summary`: generated reporting content.
+- `facultyCoordinatorId`: recipient assignment.
+- `facultyFeedback`, `facultyFeedbackAt`: response from the faculty coordinator.
 
 ## Security And Access Control
 
@@ -526,9 +513,9 @@ Routes are wrapped with [ProtectedRoute.tsx](src/components/ProtectedRoute.tsx),
 
 Frontend checks are not the security boundary. Supabase RLS policies enforce access on the database tables. Examples include:
 
-- Students read and create their own applications and logbooks.
-- Recruiters read and update applications, internships, and reports associated with their own internships.
-- Supervisors read and update records associated with internships assigned to them.
+- Students read and create their own applications and update their assigned tasks.
+- Recruiters read and update applications and internships associated with their own internships.
+- Supervisors read and update tasks and summaries associated with internships assigned to them.
 - Coordinators read data within institution, faculty, department, or direct student scope.
 - Conversation participants read only conversations and messages to which they belong.
 - Administrators manage platform records according to admin policies.
@@ -648,18 +635,18 @@ The migration directory contains incremental changes for:
 - Profile RLS and signup reconciliation.
 - Realtime messages.
 - Storage upload policies.
-- Supervisor role and logbook workflow states.
+- Supervisor role, task assignment, and task completion.
 - Department coordinator registration and application review.
 - Institution, faculty, department, and affiliation access.
 - Student-to-faculty-coordinator and supervisor assignments.
 - Selected department coordinator support.
 - Faculty coordinator invitations and activation behavior.
 - Temporary faculty passwords and approved coordinator scopes.
-- Faculty logbook report acceptance and department forwarding.
+- Period-based supervisor summaries and faculty feedback.
 
 Apply migrations in filename order. Do not apply only a late migration to a database that has not received the earlier schema or helper functions it depends on.
 
-The faculty report migration is [supabase/migrations/20240122_faculty_logbook_workflow.sql](supabase/migrations/20240122_faculty_logbook_workflow.sql). It supports deployments where the live logbook enum is named either `LogbookStatus` or `LogbookReportStatus`.
+The task and summary migrations are [supabase/migrations/20240201_supervisor_tasks.sql](supabase/migrations/20240201_supervisor_tasks.sql) and [supabase/migrations/20240202_supervisor_summaries.sql](supabase/migrations/20240202_supervisor_summaries.sql).
 
 ### Edge Functions
 
@@ -700,7 +687,7 @@ Recommended additions for future changes:
 
 - RLS integration tests for every role and table.
 - Application status transition tests.
-- Logbook state machine tests.
+- Task ownership, completion, summary delivery, and feedback tests.
 - Faculty scope filtering tests for institution, faculty, department, and direct student assignments.
 - CV reuse and application-specific CV replacement tests.
 - Message permission and conversation creation tests.

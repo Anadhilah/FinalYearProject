@@ -36,7 +36,6 @@ drop policy if exists "Recruiters read approved applications for own internships
 create policy "Recruiters read approved applications for own internships" on "Application"
   for select to authenticated
   using (
-    "departmentApprovalRequired" = false
     and "departmentReviewStatus" in ('NOT_REQUIRED', 'APPROVED')
     and exists (
       select 1
@@ -51,7 +50,6 @@ drop policy if exists "Recruiters update approved internship applications" on "A
 create policy "Recruiters update approved internship applications" on "Application"
   for update to authenticated
   using (
-    "departmentApprovalRequired" = false
     and "departmentReviewStatus" in ('NOT_REQUIRED', 'APPROVED')
     and exists (
       select 1
@@ -61,7 +59,6 @@ create policy "Recruiters update approved internship applications" on "Applicati
     )
   )
   with check (
-    "departmentApprovalRequired" = false
     and "departmentReviewStatus" in ('NOT_REQUIRED', 'APPROVED')
     and exists (
       select 1
@@ -116,10 +113,10 @@ begin
     and "isPrimary" = true
   limit 1;
 
-  if v_affiliation.id is null
-     or (
-       (v_row."departmentCoordinatorId" is null or v_row."departmentCoordinatorId" <> auth.uid()::text)
-       and not public.can_read_student_affiliation(
+  if v_row."departmentCoordinatorId" is null
+     and (
+       v_affiliation.id is null
+       or not public.can_read_student_affiliation(
          v_affiliation."institutionId",
          v_affiliation."facultyId",
          v_affiliation."departmentId",

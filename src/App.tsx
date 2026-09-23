@@ -24,8 +24,7 @@ import InternshipDetails from "./pages/student/InternshipDetails";
 import Apply from "./pages/student/Apply";
 import MyApplications from "./pages/student/MyApplications";
 import StudentMessages from "./pages/student/Messages";
-import StudentLogbook from "./pages/student/Logbook";
-import SharedLogbook from "./pages/student/SharedLogbook";
+import StudentTasks from "./pages/student/Tasks";
 
 import RecruiterVerifyEmail from "./pages/recruiter/VerifyEmail";
 import RecruiterOnboarding from "./pages/recruiter/Onboarding";
@@ -39,7 +38,6 @@ import Applicants from "./pages/recruiter/Applicants";
 import RecruiterMessages from "./pages/recruiter/Messages";
 import StudentMeetings from "./pages/student/Meetings";
 import RecruiterMeetings from "./pages/recruiter/Meetings";
-import StudentLogbooks from "./pages/recruiter/StudentLogbooks";
 
 import AdminLayout from "./components/layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -54,7 +52,7 @@ import SupervisorOverview from "./pages/supervisor/Overview";
 import SupervisorStudents from "./pages/supervisor/MyStudents";
 import SupervisorStudentDetails from "./pages/supervisor/StudentDetails";
 import SupervisorAssignTasks from "./pages/supervisor/AssignTasks";
-import SupervisorLogbooks from "./pages/supervisor/LogbookReview";
+import SupervisorSummaries from "./pages/supervisor/Summaries";
 import SupervisorMessages from "./pages/supervisor/Messages";
 import SupervisorActivate from "./pages/supervisor/Activate";
 import ManageSupervisors from "./pages/admin/ManageSupervisors";
@@ -74,8 +72,8 @@ import DepartmentCoordinatorOverview from "./pages/department-coordinator/Overvi
 import DepartmentCoordinatorApplications from "./pages/department-coordinator/Applications";
 import DepartmentCoordinatorStudents from "./pages/department-coordinator/Students";
 import DepartmentCoordinatorOrganisations from "./pages/department-coordinator/Organisations";
-import DepartmentCoordinatorReports from "./pages/department-coordinator/Reports";
 import DepartmentCoordinatorPlacements from "./pages/department-coordinator/Placements";
+import DepartmentCoordinatorSummaries from "./pages/department-coordinator/Summaries";
 import DepartmentCoordinatorFacultyCoordinators from "./pages/department-coordinator/FacultyCoordinators";
 import DepartmentCoordinatorOnboarding from "./pages/department-coordinator/Onboarding";
 
@@ -102,7 +100,6 @@ function App() {
             <Route path="/recruiter/pending" element={<PendingApproval />} />
             <Route path="/install" element={<Install />} />
             <Route path="/change-password" element={<ProtectedRoute allowedRoles={["student", "recruiter", "admin", "supervisor", "faculty-coordinator", "department-coordinator"]}><ChangePassword /></ProtectedRoute>} />
-            <Route path="/logbook/share/:token" element={<SharedLogbook />} />
             <Route path="/supervisor/activate/:token" element={<SupervisorActivate />} />
             <Route path="/coordinator/activate/:token" element={<CoordinatorActivate />} />
 
@@ -115,9 +112,9 @@ function App() {
               <Route path="internships/:id" element={<InternshipDetails />} />
               <Route path="internships/:id/apply" element={<Apply />} />
               <Route path="applications" element={<MyApplications />} />
+              <Route path="tasks" element={<StudentTasks />} />
               <Route path="messages" element={<StudentMessages />} />
               <Route path="meetings" element={<StudentMeetings />} />
-              <Route path="logbook" element={<StudentLogbook />} />
             </Route>
 
             {/* Recruiter Routes */}
@@ -129,7 +126,6 @@ function App() {
               <Route path="applicants" element={<Applicants />} />
               <Route path="messages" element={<RecruiterMessages />} />
               <Route path="meetings" element={<RecruiterMeetings />} />
-              <Route path="logbooks" element={<StudentLogbooks />} />
             </Route>
 
             {/* Admin Routes */}
@@ -146,9 +142,9 @@ function App() {
             <Route path="/supervisor" element={<ProtectedRoute allowedRoles={["supervisor"]}><SupervisorLayout /></ProtectedRoute>}>
               <Route index element={<SupervisorOverview />} />
               <Route path="students" element={<SupervisorStudents />} />
+              <Route path="summaries" element={<SupervisorSummaries />} />
               <Route path="students/:studentId" element={<SupervisorStudentDetails />} />
               <Route path="students/:studentId/tasks" element={<SupervisorAssignTasks />} />
-              <Route path="logbooks" element={<SupervisorLogbooks />} />
               <Route path="messages" element={<SupervisorMessages />} />
             </Route>
 
@@ -171,7 +167,7 @@ function App() {
               <Route path="students" element={<DepartmentCoordinatorStudents />} />
               <Route path="faculty-coordinators" element={<DepartmentCoordinatorFacultyCoordinators />} />
               <Route path="organisations" element={<DepartmentCoordinatorOrganisations />} />
-              <Route path="reports" element={<DepartmentCoordinatorReports />} />
+              <Route path="summaries" element={<DepartmentCoordinatorSummaries />} />
               <Route path="placements" element={<DepartmentCoordinatorPlacements />} />
             </Route>
 

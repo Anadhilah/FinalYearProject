@@ -151,11 +151,11 @@ export default function FacultyCoordinatorOverview() {
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <ClipboardCheck className="h-4 w-4" />
-                Internship reports
+                Recent placement activity
               </span>
               <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
                 <Link to="/faculty-coordinator/reports">
-                Open reports
+                Open summaries
                 </Link>
               </Button>
             </CardTitle>

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Building2, PlusCircle, Settings, Users, MessageCircle, Video, NotebookPen, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Building2, PlusCircle, Settings, Users, MessageCircle, Video, LogOut, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -17,7 +17,6 @@ const navItems = [
   { label: "Applicants", path: "/recruiter/applicants", icon: Users },
   { label: "Messages", path: "/recruiter/messages", icon: MessageCircle },
   { label: "Meetings", path: "/recruiter/meetings", icon: Video },
-  { label: "Logbooks", path: "/recruiter/logbooks", icon: NotebookPen },
 ];
 
 export default function RecruiterLayout() {

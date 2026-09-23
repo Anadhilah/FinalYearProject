@@ -9,12 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabaseClient";
 import { TABLES } from "@/lib/supabaseTables";
-import { apiAuthenticationServicePost, apiAuthenticationServicePut } from "@/services/auth";
+import { apiAuthenticationServicePut } from "@/services/auth";
+import { useToast } from "@/hooks/use-toast";
 import {
-  User, GraduationCap, Wrench, Upload, CheckCircle,
+  User, GraduationCap, Wrench, CheckCircle,
   ArrowRight, ArrowLeft, Briefcase, X
 } from "lucide-react";
 
@@ -22,7 +22,6 @@ const STEPS = [
   { label: "Role", icon: Briefcase },
   { label: "Personal", icon: User },
   { label: "Skills & Bio", icon: Wrench },
-  { label: "CV Upload", icon: Upload },
   { label: "Review", icon: CheckCircle },
 ] as const;
 
@@ -41,15 +40,12 @@ interface FormData {
   email: string;
   phone: string;
   university: string;
+  universitySelection: string;
+  universityOther: string;
   major: string;
   graduationYear: string;
-  institutionId: string;
-  facultyId: string;
-  departmentId: string;
-  studentNumber: string;
   bio: string;
   skills: SkillOption[];
-  cvFile: File | null;
 }
 
 interface Errors {
@@ -57,18 +53,15 @@ interface Errors {
 }
 
 const MAX_BIO_LENGTH = 500;
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function StudentOnboarding() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [step, setStep] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [institutions, setInstitutions] = useState<Array<{ id: string; name: string }>>([]);
-  const [faculties, setFaculties] = useState<Array<{ id: string; name: string; institutionId: string }>>([]);
-  const [departments, setDepartments] = useState<Array<{ id: string; name: string; institutionId: string; facultyId?: string | null }>>([]);
 
   const [formData, setFormData] = useState<FormData>({
     rolePreference: "",
@@ -76,15 +69,12 @@ export default function StudentOnboarding() {
     email: user?.email || "",
     phone: "",
     university: "",
+    universitySelection: "",
+    universityOther: "",
     major: "",
     graduationYear: "",
-    institutionId: "",
-    facultyId: "",
-    departmentId: "",
-    studentNumber: "",
     bio: "",
     skills: [],
-    cvFile: null,
   });
 
   const [errors, setErrors] = useState<Errors>({});
@@ -94,19 +84,14 @@ export default function StudentOnboarding() {
   useEffect(() => {
     const loadReferenceData = async () => {
       try {
-        const [institutionsRes, facultiesRes, departmentsRes] = await Promise.all([
-          supabase.from(TABLES.INSTITUTION).select("id, name").order("name", { ascending: true }),
-          supabase.from(TABLES.FACULTY_SCHOOL).select("id, name, institutionId").order("name", { ascending: true }),
-          supabase.from(TABLES.DEPARTMENT).select("id, name, institutionId, facultyId").order("name", { ascending: true }),
-        ]);
+        const institutionsRes = await supabase
+          .from(TABLES.INSTITUTION)
+          .select("id, name")
+          .order("name", { ascending: true });
 
         if (institutionsRes.error) throw institutionsRes.error;
-        if (facultiesRes.error) throw facultiesRes.error;
-        if (departmentsRes.error) throw departmentsRes.error;
 
         setInstitutions((institutionsRes.data as Array<{ id: string; name: string }>) || []);
-        setFaculties((facultiesRes.data as Array<{ id: string; name: string; institutionId: string }>) || []);
-        setDepartments((departmentsRes.data as Array<{ id: string; name: string; institutionId: string; facultyId?: string | null }>) || []);
       } catch (error) {
         console.error("Failed to load institution metadata:", error);
       }
@@ -162,28 +147,10 @@ export default function StudentOnboarding() {
         if (formData.bio.length > MAX_BIO_LENGTH) newErrors.bio = `Bio cannot exceed ${MAX_BIO_LENGTH} characters`;
         break;
 
-      case 3:
-        if (formData.cvFile && formData.cvFile.size > MAX_FILE_SIZE) {
-          newErrors.cvFile = "File size must be less than 5MB";
-        }
-        break;
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file && file.size > MAX_FILE_SIZE) {
-      toast({
-        title: "File too large",
-        description: "Maximum file size is 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-    updateField("cvFile", file);
   };
 
   const handleNext = () => {
@@ -193,18 +160,10 @@ export default function StudentOnboarding() {
   };
 
   const handleComplete = async () => {
-    if (!validateStep(4) || !user?.id) return;
+    if (!validateStep(3) || !user?.id) return;
 
     setIsSubmitting(true);
     try {
-      let cvPath: string | null = null;
-      if (formData.cvFile) {
-        const uploadForm = new FormData();
-        uploadForm.append("file", formData.cvFile);
-        const uploadRes = await apiAuthenticationServicePost("/upload/cv", uploadForm);
-        cvPath = uploadRes.data?.path || null;
-      }
-
       await apiAuthenticationServicePut(`/users/${user.id}`, {
         name: formData.fullName,
         email: formData.email,
@@ -212,31 +171,8 @@ export default function StudentOnboarding() {
         university: formData.university,
         major: formData.major,
         bio: formData.bio,
-        ...(formData.graduationYear ? { graduationYear: formData.graduationYear } : {}),
-        ...(cvPath ? { cvUrl: cvPath } : {}),
+        ...(formData.graduationYear ? { graduationYear: Number(formData.graduationYear) } : {}),
       });
-
-      if (formData.institutionId) {
-        const affiliationPayload = {
-          id: crypto.randomUUID(),
-          studentId: user.id,
-          institutionId: formData.institutionId,
-          facultyId: formData.facultyId || null,
-          departmentId: formData.departmentId || null,
-          studentNumber: formData.studentNumber.trim() || null,
-          isPrimary: true,
-          startDate: null,
-          endDate: null,
-        };
-
-        const { error: affiliationError } = await supabase
-          .from(TABLES.STUDENT_INSTITUTION_AFFILIATION)
-          .upsert(affiliationPayload, { onConflict: "id" });
-
-        if (affiliationError) {
-          throw affiliationError;
-        }
-      }
 
       localStorage.setItem("ic_onboarded", "true");
       localStorage.removeItem("ic_onboarding_draft");
@@ -250,7 +186,7 @@ export default function StudentOnboarding() {
       console.error("Failed to save onboarding profile:", error);
       toast({
         title: "Failed to save profile",
-        description: "Please try again",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     } finally {
@@ -316,8 +252,7 @@ export default function StudentOnboarding() {
               {step === 0 && "What type of internship are you looking for?"}
               {step === 1 && "Tell us about yourself"}
               {step === 2 && "Highlight your skills and write a short bio"}
-              {step === 3 && "Upload your CV/resume (optional but recommended)"}
-              {step === 4 && "Review your information before completing setup"}
+              {step === 3 && "Review your information before completing setup"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -385,12 +320,37 @@ export default function StudentOnboarding() {
                   </div>
                   <div className="space-y-2">
                     <Label>University *</Label>
-                    <Input
-                      placeholder="e.g. MIT"
-                      value={formData.university}
-                      onChange={(e) => updateField("university", e.target.value)}
+                    <select
+                      value={formData.universitySelection}
+                      onChange={(e) => {
+                        const selection = e.target.value;
+                        updateField("universitySelection", selection);
+                        updateField(
+                          "university",
+                          selection === "other"
+                            ? formData.universityOther
+                            : institutions.find((institution) => institution.id === selection)?.name || ""
+                        );
+                      }}
                       className={errors.university ? "border-destructive" : ""}
-                    />
+                    >
+                      <option value="">Select your university</option>
+                      {institutions.map((institution) => (
+                        <option key={institution.id} value={institution.id}>{institution.name}</option>
+                      ))}
+                      <option value="other">Other</option>
+                    </select>
+                    {formData.universitySelection === "other" && (
+                      <Input
+                        placeholder="Type your university name"
+                        value={formData.universityOther}
+                        onChange={(e) => {
+                          updateField("universityOther", e.target.value);
+                          updateField("university", e.target.value);
+                        }}
+                        className={errors.university ? "border-destructive" : ""}
+                      />
+                    )}
                     {errors.university && <p className="text-xs text-destructive">{errors.university}</p>}
                   </div>
                   <div className="space-y-2">
@@ -413,90 +373,6 @@ export default function StudentOnboarding() {
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-xl border bg-muted/20 p-4 space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium">Institutional affiliation (optional)</h3>
-                  <p className="text-xs text-muted-foreground">Leave these blank if you are not affiliated with an institution.</p>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Institution</Label>
-                    <select
-                      value={formData.institutionId}
-                      onChange={(e) => {
-                        updateField("institutionId", e.target.value);
-                        updateField("facultyId", "");
-                        updateField("departmentId", "");
-                      }}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="">Select an institution</option>
-                      {institutions.map((institution) => (
-                        <option key={institution.id} value={institution.id}>
-                          {institution.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Student number</Label>
-                    <Input
-                      placeholder="e.g. 202405001"
-                      value={formData.studentNumber}
-                      onChange={(e) => updateField("studentNumber", e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Faculty / School</Label>
-                    <select
-                      value={formData.facultyId}
-                      onChange={(e) => {
-                        updateField("facultyId", e.target.value);
-                        updateField("departmentId", "");
-                      }}
-                      disabled={!formData.institutionId}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Select faculty / school</option>
-                      {faculties
-                        .filter((faculty) => faculty.institutionId === formData.institutionId)
-                        .map((faculty) => (
-                          <option key={faculty.id} value={faculty.id}>
-                            {faculty.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Department</Label>
-                    <select
-                      value={formData.departmentId}
-                      onChange={(e) => updateField("departmentId", e.target.value)}
-                      disabled={!formData.institutionId}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Select department</option>
-                      {departments
-                        .filter(
-                          (department) =>
-                            department.institutionId === formData.institutionId &&
-                            (!formData.facultyId || department.facultyId === formData.facultyId)
-                        )
-                        .map((department) => (
-                          <option key={department.id} value={department.id}>
-                            {department.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-                </div>
               </>
             )}
 
@@ -543,56 +419,8 @@ export default function StudentOnboarding() {
               </div>
             )}
 
-            {/* Step 3: CV Upload */}
-            {step === 3 && (
-              <div className="space-y-4">
-                <label
-                  htmlFor="cv-upload"
-                  className={cn(
-                    "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
-                    formData.cvFile
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  )}
-                >
-                  <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                  {formData.cvFile ? (
-                    <>
-                      <p className="font-medium text-sm">{formData.cvFile.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {(formData.cvFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-medium text-sm">Click to upload or drag & drop</p>
-                      <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX — max 5MB</p>
-                    </>
-                  )}
-                  <input
-                    id="cv-upload"
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
-                {formData.cvFile && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => updateField("cvFile", null)}
-                  >
-                    Remove file
-                  </Button>
-                )}
-                {errors.cvFile && <p className="text-xs text-destructive">{errors.cvFile}</p>}
-              </div>
-            )}
-
             {/* Step 4: Review */}
-            {step === 4 && (
+            {step === 3 && (
               <div className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <ReviewItem label="Role Preference" value={formData.rolePreference} />
@@ -602,7 +430,6 @@ export default function StudentOnboarding() {
                   <ReviewItem label="University" value={formData.university} />
                   <ReviewItem label="Major" value={formData.major} />
                   <ReviewItem label="Graduation" value={formData.graduationYear || "—"} />
-                  <ReviewItem label="CV" value={formData.cvFile ? formData.cvFile.name : "Not uploaded"} />
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Skills</p>
