@@ -41,8 +41,21 @@ export async function getSignedFileUrl(path: string, expiresIn = 3600): Promise<
 
 /** Uploads a file to Supabase Storage and returns the stored path. */
 export async function uploadFile(file: File, folder = STORAGE.FOLDER): Promise<string> {
-  const { data: user } = await supabase.auth.getUser();
-  const owner = user?.user?.id || "anonymous";
+  let { data: user } = await supabase.auth.getUser();
+
+  // A stale auth context can outlive the Supabase session after a reload or
+  // email-confirmation flow. Recover the session before constructing a path;
+  // storage policies must never receive an anonymous owner folder.
+  if (!user.user) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) throw new Error(`Your session has expired. Please sign in again. (${refreshError.message})`);
+    user = refreshed.user ? { user: refreshed.user } : { user: null };
+  }
+
+  const owner = user.user?.id;
+  if (!owner) {
+    throw new Error("You must be signed in before uploading a file.");
+  }
   const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${folder}/${owner}/${Date.now()}-${sanitized}`;
   const { error } = await supabase.storage.from(STORAGE.BUCKET).upload(path, file, {
