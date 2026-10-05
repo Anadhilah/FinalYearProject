@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMessages } from "@/contexts/MessagesContext";
 import type { ChatConversation } from "@/types/chat";
@@ -15,6 +16,8 @@ export default function RecruiterMessages() {
     resetSelection,
     sendMessage,
   } = useMessages();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedConversationId = searchParams.get("conversation");
   const [selected, setSelected] = useState<ChatConversation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +29,17 @@ export default function RecruiterMessages() {
   const handleBack = () => {
     setSelected(null);
     resetSelection();
+    setSearchParams({}, { replace: true });
   };
+
+  useEffect(() => {
+    if (!requestedConversationId || loading) return;
+    const conversation = conversations.find((item) => item.id === requestedConversationId);
+    if (conversation) {
+      setSelected(conversation);
+      selectConversation(conversation.id);
+    }
+  }, [conversations, loading, requestedConversationId, selectConversation]);
 
   useEffect(() => {
     return () => resetSelection();

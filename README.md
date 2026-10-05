@@ -171,6 +171,7 @@ The database `Role` enum supports the following roles:
 - Recruiters must be able to view applicants for their internships.
 - Recruiters must be able to review applications and update permitted application statuses.
 - Recruiters must be able to assign active company supervisors to accepted internship applications.
+- Recruiters must be able to create company supervisor accounts and assign them to their internships.
 - Recruiters must be able to communicate with students.
 - Recruiters must be able to create or manage meetings with students.
 
@@ -315,6 +316,7 @@ The database `Role` enum supports the following roles:
 | `/recruiter/post` | Create an internship. |
 | `/recruiter/manage` | Manage internships. |
 | `/recruiter/applicants` | Review applicants. |
+| `/recruiter/supervisors` | Create company supervisor accounts and view available supervisors. |
 | `/recruiter/messages` | Recruiter conversations. |
 | `/recruiter/meetings` | Recruiter meetings. |
 
@@ -480,6 +482,7 @@ Conversation
 - `cvUrl`: stored CV path or URL.
 - `university`, `major`: student academic information.
 - `company`, `industry`, and organisation fields: recruiter information.
+- `companyRecruiterId`: recruiter who created a company supervisor account.
 - `isApproved`, `coordinatorStatus`, `recruiterStatus`: activation and approval state.
 
 #### `Application`
@@ -639,6 +642,7 @@ The migration directory contains incremental changes for:
 - Department coordinator registration and application review.
 - Institution, faculty, department, and affiliation access.
 - Student-to-faculty-coordinator and supervisor assignments.
+- Recruiter-created company supervisor accounts and recruiter-scoped supervisor visibility.
 - Selected department coordinator support.
 - Faculty coordinator invitations and activation behavior.
 - Temporary faculty passwords and approved coordinator scopes.
@@ -657,6 +661,7 @@ The repository includes these Supabase Edge Function areas:
 | `agora-token` | Generates call tokens for Agora sessions. |
 | `create-faculty-coordinator` | Creates or provisions faculty coordinator accounts. |
 | `invite-faculty-coordinator` | Sends or manages faculty coordinator invitations. |
+| `create-company-supervisor` | Creates a Company Supervisor account for an approved recruiter and returns a one-time temporary password. |
 | `send-email` | Sends application email notifications through the configured provider. |
 
 Deploy functions using the Supabase CLI or the project deployment workflow. Configure provider secrets in Supabase rather than in the browser.

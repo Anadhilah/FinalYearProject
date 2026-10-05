@@ -35,6 +35,7 @@ import CompanyProfile from "./pages/recruiter/CompanyProfile";
 import PostInternship from "./pages/recruiter/PostInternship";
 import ManageInternships from "./pages/recruiter/ManageInternships";
 import Applicants from "./pages/recruiter/Applicants";
+import RecruiterSupervisors from "./pages/recruiter/Supervisors";
 import RecruiterMessages from "./pages/recruiter/Messages";
 import StudentMeetings from "./pages/student/Meetings";
 import RecruiterMeetings from "./pages/recruiter/Meetings";
@@ -124,6 +125,7 @@ function App() {
               <Route path="post" element={<PostInternship />} />
               <Route path="manage" element={<ManageInternships />} />
               <Route path="applicants" element={<Applicants />} />
+              <Route path="supervisors" element={<RecruiterSupervisors />} />
               <Route path="messages" element={<RecruiterMessages />} />
               <Route path="meetings" element={<RecruiterMeetings />} />
             </Route>

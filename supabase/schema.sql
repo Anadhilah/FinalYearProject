@@ -50,6 +50,7 @@ create table if not exists "User" (
   "createdAt" timestamptz not null default now(),
   "updatedAt" timestamptz not null default now(),
   company text,
+  "companyRecruiterId" text references "User" (id) on delete set null,
   industry text,
   "proofDocUrl" text,
   "recruiterStatus" "RecruiterStatus",
@@ -78,6 +79,7 @@ create table if not exists "User" (
   city text,
   country text
 );
+alter table "User" add column if not exists "companyRecruiterId" text references "User" (id) on delete set null;
 alter table "User" enable row level security;
 
 -- ---------- Internship ----------
@@ -365,6 +367,23 @@ create policy "Users update own profile" on "User"
 drop policy if exists "Users insert own profile" on "User";
 create policy "Users insert own profile" on "User"
   for insert with check (auth.uid()::text = id);
+
+drop policy if exists "Recruiters read company supervisors" on "User";
+create policy "Recruiters read company supervisors" on "User"
+  for select to authenticated
+  using (
+    public.get_my_role() = 'RECRUITER'
+    and role = 'SUPERVISOR'::"Role"
+    and coalesce(suspended, false) = false
+    and (
+      "companyRecruiterId" = auth.uid()::text
+      or exists (
+        select 1 from "Internship" internship
+        where internship."supervisorId" = "User".id
+          and internship."recruiterId" = auth.uid()::text
+      )
+    )
+  );
 
 -- ---------- Internship ----------
 drop policy if exists "Read internships" on "Internship";

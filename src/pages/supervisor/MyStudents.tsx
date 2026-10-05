@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Users, Building2, CalendarRange } from "lucide-react";
+import { Search, Users, Building2, CalendarRange, MessageCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useMessages } from "@/contexts/MessagesContext";
+import { startConversation } from "@/services/chat";
 import { fetchSupervisorStudents } from "@/services/supabase-api";
 
 export default function SupervisorStudents() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { refresh: refreshConversations } = useMessages();
   const [search, setSearch] = useState("");
+  const [messagingStudentId, setMessagingStudentId] = useState<string | null>(null);
   const [studentAssignments, setStudentAssignments] = useState<Array<{
     id: string; name: string; internship: string; company: string; department: string; status: string; nextReview: string; progress: string;
   }>>([]);
@@ -36,6 +43,23 @@ export default function SupervisorStudents() {
       student.company.toLowerCase().includes(search.toLowerCase())
   );
 
+  const messageStudent = async (studentId: string) => {
+    setMessagingStudentId(studentId);
+    try {
+      const conversation = await startConversation(studentId);
+      await refreshConversations();
+      navigate(`/supervisor/messages?conversation=${encodeURIComponent(conversation.id)}`);
+    } catch (error) {
+      toast({
+        title: "Unable to start conversation",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setMessagingStudentId(null);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -59,9 +83,21 @@ export default function SupervisorStudents() {
             filtered.map((student) => (
               <div key={student.id} className="rounded-lg border p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="min-w-0">
                     <p className="font-medium text-base">{student.name}</p>
                     <p className="text-sm text-muted-foreground">{student.internship}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => void messageStudent(student.id)}
+                      disabled={messagingStudentId === student.id}
+                    >
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      {messagingStudentId === student.id ? "Opening..." : "Message"}
+                    </Button>
                   </div>
                   <Badge
                     variant={
@@ -120,9 +156,6 @@ export default function SupervisorStudents() {
                       Assign tasks
                     </Button>
                   </Link>
-                  <Button variant="ghost" size="sm">
-                    Review reports
-                  </Button>
                 </div>
               </div>
             ))

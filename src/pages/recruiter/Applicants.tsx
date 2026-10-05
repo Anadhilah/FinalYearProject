@@ -159,14 +159,15 @@ export default function Applicants() {
                         </div>
                         {app.student?.id && (
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 flex-shrink-0"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 flex-shrink-0 px-2"
                             onClick={() => handleMessage(app.student!.id!)}
                             disabled={messagingId === app.student.id}
                             title="Message this student"
                           >
-                            <MessageCircle className="h-3.5 w-3.5" />
+                            <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                            Message
                           </Button>
                         )}
                       </div>

@@ -13,6 +13,32 @@ function throwIfError(error: { message?: string } | null, fallback: string) {
   }
 }
 
+async function getFunctionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const functionError = error as { message?: unknown; context?: unknown };
+  const context = functionError?.context;
+  if (context && typeof context === "object" && "clone" in context && typeof context.clone === "function") {
+    const response = context as Response;
+    try {
+      const details = await response.clone().json() as { message?: unknown };
+      if (typeof details?.message === "string" && details.message) return details.message;
+    } catch {
+      try {
+        const body = await response.clone().text();
+        if (body.trim()) return body;
+      } catch {
+        // Keep the SDK error when the response body is unreadable.
+      }
+    }
+  }
+
+  const contextMessage = context && typeof context === "object" && "message" in context && typeof context.message === "string"
+    ? context.message
+    : typeof context === "string" ? context : "";
+  const message = typeof functionError?.message === "string" ? functionError.message : "";
+  if (message && contextMessage) return `${message}: ${contextMessage}`;
+  return contextMessage || message || fallback;
+}
+
 /**
  * The tables use `id text primary key` with NO default value, so the app must
  * supply an id on insert. This returns a unique id for new rows.
@@ -209,6 +235,90 @@ export async function fetchRecruiterSupervisors(): Promise<Array<{ id: string; n
     name: supervisor.name || "Company Supervisor",
     email: supervisor.email,
   }));
+}
+
+export interface RecruiterSupervisorAssignment {
+  supervisor: CompanySupervisorProfile;
+  students: Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    internshipTitles: string[];
+  }>;
+}
+
+export async function fetchRecruiterSupervisorAssignments(): Promise<RecruiterSupervisorAssignment[]> {
+  const { data: authData } = await supabase.auth.getUser();
+  const recruiterId = authData.user?.id;
+  if (!recruiterId) throw new Error("You must be signed in.");
+
+  const supervisors = await fetchRecruiterSupervisors();
+  const { data: internships, error: internshipError } = await supabase
+    .from(TABLES.INTERNSHIP)
+    .select("id, title, supervisorId")
+    .eq("recruiterId", recruiterId)
+    .not("supervisorId", "is", null);
+  throwIfError(internshipError, "Failed to load supervisor assignments");
+
+  const assignedInternships = (internships || []) as Array<{ id: string; title: string; supervisorId: string }>;
+  if (assignedInternships.length === 0) return supervisors.map((supervisor) => ({ supervisor, students: [] }));
+
+  const { data: applications, error: applicationError } = await supabase
+    .from(TABLES.APPLICATION)
+    .select("internshipId, student:studentId(id, name, email)")
+    .in("internshipId", assignedInternships.map((internship) => internship.id));
+  throwIfError(applicationError, "Failed to load students assigned to supervisors");
+
+  const bySupervisor = new Map<string, Map<string, RecruiterSupervisorAssignment["students"][number]>>();
+  for (const application of (applications || []) as Array<{
+    internshipId: string;
+    student: { id: string; name?: string | null; email?: string | null } | null;
+  }>) {
+    if (!application.student?.id) continue;
+    const internship = assignedInternships.find((item) => item.id === application.internshipId);
+    if (!internship) continue;
+    const students = bySupervisor.get(internship.supervisorId) || new Map();
+    const student = students.get(application.student.id) || {
+      id: application.student.id,
+      name: application.student.name || "Student",
+      email: application.student.email || null,
+      internshipTitles: [],
+    };
+    if (!student.internshipTitles.includes(internship.title)) student.internshipTitles.push(internship.title);
+    students.set(student.id, student);
+    bySupervisor.set(internship.supervisorId, students);
+  }
+
+  return supervisors.map((supervisor) => ({
+    supervisor,
+    students: Array.from(bySupervisor.get(supervisor.id)?.values() || []),
+  }));
+}
+
+export interface CompanySupervisorProfile {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export async function createCompanySupervisor(payload: {
+  name: string;
+  email: string;
+}): Promise<{ supervisor: CompanySupervisorProfile; temporaryPassword: string }> {
+  const { data, error } = await supabase.functions.invoke("create-company-supervisor", { body: payload });
+  if (error) {
+    throw new Error(await getFunctionErrorMessage(error, "Failed to create Company Supervisor."));
+  }
+  const result = data as {
+    success?: boolean;
+    message?: string;
+    supervisor?: CompanySupervisorProfile;
+    temporaryPassword?: string;
+  } | null;
+  if (!result?.success || !result.supervisor || !result.temporaryPassword) {
+    throw new Error(result?.message || "Failed to create Company Supervisor.");
+  }
+  return { supervisor: result.supervisor, temporaryPassword: result.temporaryPassword };
 }
 
 export async function assignRecruiterSupervisor(internshipId: string, supervisorId: string | null): Promise<void> {
@@ -2110,6 +2220,7 @@ export interface LogbookReport {
   attachmentUrls?: string | null;
   status?: string | null;
   recruiterComment?: string | null;
+  supervisorComment?: string | null;
   shareToken?: string | null;
   createdAt?: string | null;
   internship?: { id?: string; title?: string | null } | null;
@@ -2740,16 +2851,7 @@ export async function createFacultyCoordinator(payload: {
     body: payload,
   });
   if (error) {
-    const response = (error as { context?: Response }).context;
-    if (response) {
-      try {
-        const details = await response.clone().json() as { message?: string };
-        throw new Error(details.message || "Failed to create Faculty Coordinator.");
-      } catch (responseError) {
-        if (responseError instanceof Error && responseError.message !== "Unexpected end of JSON input") throw responseError;
-      }
-    }
-    throwIfError(error, "Failed to create Faculty Coordinator");
+    throw new Error(await getFunctionErrorMessage(error, "Failed to create Faculty Coordinator."));
   }
   const result = data as {
     success?: boolean;
@@ -3043,7 +3145,7 @@ export async function resendSupervisorInvitation(payload: {
 export async function fetchSupervisorStudents(): Promise<
   Array<{
     student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null };
-    internships: Array<{ id: string; title: string; company?: string | null }>;
+    internships: Array<{ id: string; title: string; company?: string | null; startDate?: string | null; endDate?: string | null; status?: string | null }>;
   }>
 > {
   const { data: user } = await supabase.auth.getUser();
@@ -3059,7 +3161,7 @@ export async function fetchSupervisorStudents(): Promise<
     .in("internshipId", ids);
   if (error) throw new Error("Failed to load your students.");
 
-  const byStudent = new Map<string, { student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null }; internships: Array<{ id: string; title: string; company?: string | null }> }>();
+  const byStudent = new Map<string, { student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null }; internships: Array<{ id: string; title: string; company?: string | null; startDate?: string | null; endDate?: string | null; status?: string | null }> }>();
   const rows = (data as unknown as Array<{
     studentId: string;
     internshipId: string;
@@ -3071,7 +3173,14 @@ export async function fetchSupervisorStudents(): Promise<
     const entry = byStudent.get(studentRow.id) || { student: studentRow, internships: [] };
     const internship = internships.find((i) => i.id === row.internshipId);
     if (internship && !entry.internships.some((x) => x.id === internship.id)) {
-      entry.internships.push({ id: internship.id, title: internship.title, company: internship.recruiter?.company || null });
+      entry.internships.push({
+        id: internship.id,
+        title: internship.title,
+        company: internship.recruiter?.company || null,
+        startDate: internship.startDate || null,
+        endDate: internship.endDate || null,
+        status: internship.status || null,
+      });
     }
     byStudent.set(studentRow.id, entry);
   }
