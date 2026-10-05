@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/landing/Navbar";
@@ -16,6 +16,9 @@ import {
   ShieldCheck,
   FileCheck, 
   Building2,
+  ArrowRight,
+  Check,
+  Sparkles,
 
 } from "lucide-react";
 interface User {
@@ -112,10 +115,10 @@ const departmentCoordinatorSteps = [
 ];
 
 const stats = [
-  { value: "5,000+", label: "Internships Posted" },
-  { value: "12,000+", label: "Students Registered" },
-  { value: "800+", label: "Partner Companies" },
-  { value: "95%", label: "Satisfaction Rate" },
+  { value: "6", label: "connected platform roles" },
+  { value: "1", label: "shared internship journey" },
+  { value: "Live", label: "messages and progress updates" },
+  { value: "End to end", label: "placement visibility" },
 ];
 
 function HowItWorks() {
@@ -131,54 +134,57 @@ function HowItWorks() {
         : departmentCoordinatorSteps;
 
   return (
-    <section className="py-24 bg-slate-50">
+    <section id="how-it-works" className="bg-[#f3f7fa] py-20 md:py-28">
       <div className="max-w-6xl mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center"
+          className="mx-auto max-w-2xl text-center"
         >
-          <h2 className="text-4xl font-bold text-slate-900">
-            How InternshipConnect Works
-          </h2>
-          <p className="mt-4 text-slate-600">
-            Connecting talented students with verified organizations.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#008e9e]">A clear path forward</p>
+          <h2 className="mt-3 text-3xl font-bold text-[#06234a] md:text-4xl">One journey, shared by everyone.</h2>
+          <p className="mt-4 text-[#64748b]">From first application to final review, each person knows what comes next.</p>
         </motion.div>
 
         {/* Tabs */}
         <div className="flex justify-center mt-10">
-          <div className="bg-white p-1 rounded-full shadow-md flex flex-wrap justify-center gap-2">
+          <div role="tablist" aria-label="Choose a platform role" className="inline-flex flex-wrap justify-center gap-1 rounded-full border border-[#dbe5ed] bg-white p-1.5 shadow-sm">
             <button
+              role="tab"
+              aria-selected={activeTab === "students"}
               onClick={() => setActiveTab("students")}
-              className={`px-6 py-2 rounded-full transition ${
+              className={`rounded-full px-5 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === "students"
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-600"
+                  ? "bg-[#06234a] text-white"
+                  : "text-[#64748b] hover:text-[#06234a]"
               }`}
             >
               Students
             </button>
 
             <button
+              role="tab"
+              aria-selected={activeTab === "recruiters"}
               onClick={() => setActiveTab("recruiters")}
-              className={`px-6 py-2 rounded-full transition ${
+              className={`rounded-full px-5 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === "recruiters"
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-600"
+                  ? "bg-[#06234a] text-white"
+                  : "text-[#64748b] hover:text-[#06234a]"
               }`}
             >
               Recruiters
             </button>
 
             <button
+              role="tab"
+              aria-selected={activeTab === "department-coordinators"}
               onClick={() => setActiveTab("department-coordinators")}
-              className={`px-6 py-2 rounded-full transition ${
+              className={`rounded-full px-5 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === "department-coordinators"
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-600"
+                  ? "bg-[#06234a] text-white"
+                  : "text-[#64748b] hover:text-[#06234a]"
               }`}
             >
               Department Coordinators
@@ -187,32 +193,27 @@ function HowItWorks() {
         </div>
 
         {/* Steps */}
-        <div className="grid md:grid-cols-3 gap-8 mt-14">
+        <div className="mt-12 grid gap-4 md:grid-cols-3 md:gap-6">
           {steps.map((step, index) => (
             <motion.div
               key={step.number}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{
-                delay: index * 0.2,
-                duration: 0.5,
-              }}
-              whileHover={{
-                y: -10,
-                scale: 1.03,
-              }}
-              className="bg-white rounded-2xl p-8 shadow-md border"
+              transition={{ delay: index * 0.12, duration: 0.45 }}
+              whileHover={{ y: -5 }}
+              className="group min-h-60 border-t-2 border-[#ccdce7] bg-white p-6 shadow-[0_12px_36px_rgba(6,35,74,0.04)] transition-colors hover:border-[#008e9e] md:p-8"
             >
-              <div className="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
-                {step.number}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#008e9e]">Step {step.number}</span>
+                <ArrowRight className="h-4 w-4 text-[#8090a1] transition-transform group-hover:translate-x-1 group-hover:text-[#008e9e]" />
               </div>
 
-              <h3 className="mt-6 text-xl font-semibold">
+              <h3 className="mt-10 text-xl font-semibold text-[#06234a]">
                 {step.title}
               </h3>
 
-              <p className="mt-3 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-[#64748b]">
                 {step.description}
               </p>
             </motion.div>
@@ -252,143 +253,187 @@ useEffect(() => {
   FetchUsers();
 }, []);
   return (
-    <div className="min-h-screen flex flex-col">
+    <MotionConfig reducedMotion="user">
+    <div className="min-h-screen flex flex-col text-left">
       <Navbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero opacity-[0.03]" />
-        <div className="container mx-auto px-4 py-20 md:py-32 relative">
-          <div className="max-w-3xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-sm font-medium px-4 py-1.5 rounded-full mb-6 animate-fade-in">
-              <Briefcase className="h-3.5 w-3.5" />
-              Your Career Starts Here
+      <section className="relative overflow-hidden bg-[#f3f7fa]">
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[43%] bg-[#e6f2f4] lg:block" />
+        <div className="container relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-12 sm:px-8 md:py-16 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16 lg:py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: "easeOut" }}
+            className="relative z-10 max-w-xl"
+          >
+            <div className="mb-6 inline-flex items-center gap-2 border-b border-[#ccdce7] pb-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#008e9e]">
+              <Sparkles className="h-4 w-4" />
+              A better start to working life
             </div>
-
-            <h1 className="text-4xl md:text-6xl font-display font-extrabold tracking-tight mb-6 animate-fade-in">
-              Connect With Your{" "}
-              <span className="text-gradient">
-                Dream Internship
-              </span>
+            <h1 className="text-3xl font-display font-extrabold leading-[1.02] text-[#06234a] sm:text-5xl lg:text-7xl">
+              <span className="block">Internship</span>
+              <span className="block text-[#008e9e]">Connect</span>
             </h1>
-
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-fade-in">
-              InternshipConnect bridges the gap between ambitious students and top companies.
+            <p className="mt-6 max-w-lg text-lg leading-8 text-[#4b6176] md:text-xl">
+              Make the move from classroom to career with a clearer, more connected internship journey.
             </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button size="lg" asChild className="text-base px-8">
-                <Link to="/register">Get Started Free</Link>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" asChild className="h-12 rounded-md bg-[#008e9e] px-6 text-base text-white hover:bg-[#00727e]">
+                <Link to="/register">Get started <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild className="h-12 rounded-md border-[#c7d6e1] bg-white/70 px-6 text-base text-[#06234a] hover:bg-white">
+                <a href="#how-it-works">See how it works</a>
               </Button>
             </div>
-          </div>
+            <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#4b6176]">
+              <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-[#008e9e]" /> Verified organizations</span>
+              <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-[#008e9e]" /> Progress in one place</span>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.75, delay: 0.12, ease: "easeOut" }}
+            className="relative mx-auto w-full max-w-2xl lg:ml-auto"
+          >
+            <div className="overflow-hidden bg-[#dbeaf0] shadow-[0_20px_48px_rgba(6,35,74,0.14)]">
+              <img
+                src="https://images.pexels.com/photos/5940713/pexels-photo-5940713.jpeg?auto=compress&cs=tinysrgb&w=1400"
+                alt="Two Black university students collaborating on a laptop with their instructor"
+                className="aspect-[1.24/1] w-full object-cover object-center"
+                loading="eager"
+              />
+            </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Stats */}
-      <section className="border-y bg-card">
-        <div className="container mx-auto px-4 py-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <section className="border-b border-[#dbe5ed] bg-white">
+        <div className="container mx-auto max-w-7xl px-5 py-8 sm:px-8 md:py-10">
+          <div className="grid grid-cols-2 gap-y-7 md:grid-cols-4 md:divide-x md:divide-[#dbe5ed]">
             {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-2xl md:text-3xl font-bold text-primary">
+              <motion.div key={stat.label} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4 }} className="px-3 text-center md:px-5">
+                <div className="text-xl font-bold text-[#06234a] md:text-2xl">
                   {stat.value}
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">
+                <div className="mt-1 text-xs text-[#6b7b8e] sm:text-sm">
                   {stat.label}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* Features */}
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-3">
-              Why InternshipConnect?
-            </h2>
-          </div>
+      <section className="bg-white py-20 md:py-28">
+        <div className="container mx-auto max-w-7xl px-5 sm:px-8">
+          <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#008e9e]">Built for the full journey</p>
+              <h2 className="mt-3 max-w-xl text-3xl font-bold leading-tight text-[#06234a] md:text-4xl">More than a listing. A place to make progress.</h2>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-[#64748b]">Bring discovery, communication, and placement follow-through together for the people who make internships work.</p>
+          </motion.div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature) => (
-              <div
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {features.map((feature, index) => (
+              <motion.article
                 key={feature.title}
-                className="bg-card rounded-xl p-6 shadow-card border"
+                initial={{ opacity: 0, y: 22 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.45, delay: index * 0.08 }}
+                whileHover={{ y: -4 }}
+                className="group border border-[#dbe5ed] bg-[#f8fafc] p-5 transition-colors hover:border-[#b2d7dc] md:p-6"
               >
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <feature.icon className="h-5 w-5 text-primary" />
+                <div className="flex items-center justify-between">
+                  <span className="flex h-11 w-11 items-center justify-center bg-[#e1f2f4] text-[#007f8d] transition-colors group-hover:bg-[#06234a] group-hover:text-white">
+                    <feature.icon className="h-5 w-5" />
+                  </span>
+                  <span className="text-xs font-semibold text-[#e5a72e]">0{index + 1}</span>
                 </div>
-                <h3 className="font-semibold mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
-              </div>
+                <h3 className="mt-8 font-semibold text-[#06234a]">{feature.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#64748b]">{feature.description}</p>
+              </motion.article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden bg-[#06234a] text-white">
+        <div className="container mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 md:py-20 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16">
+          <motion.div initial={{ opacity: 0, x: -18 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e5a72e]">People make the placement</p>
+            <h2 className="mt-4 max-w-lg text-3xl font-bold leading-tight md:text-4xl">Better handoffs. More room to grow.</h2>
+            <p className="mt-5 max-w-lg text-sm leading-7 text-white/70 md:text-base">
+              Students, company teams, and university coordinators each have a part to play. Keep the goals, updates, and next steps connected.
+            </p>
+            <div className="mt-7 space-y-3 text-sm text-white/85">
+              <p className="flex items-center gap-3"><Check className="h-4 w-4 text-[#e5a72e]" /> Clear ownership at each stage</p>
+              <p className="flex items-center gap-3"><Check className="h-4 w-4 text-[#e5a72e]" /> Feedback that stays with the student</p>
+              <p className="flex items-center gap-3"><Check className="h-4 w-4 text-[#e5a72e]" /> One place for tasks and conversations</p>
+            </div>
+          </motion.div>
+
+          <div className="grid grid-cols-[1.15fr_0.85fr] items-stretch gap-3 sm:gap-4">
+            <motion.img
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.55 }}
+              src="https://images.pexels.com/photos/1181406/pexels-photo-1181406.jpeg?auto=compress&cs=tinysrgb&w=1100"
+              alt="Black women and colleagues working together around a conference table"
+              loading="lazy"
+              className="h-full min-h-64 w-full object-cover sm:min-h-80"
+            />
+            <motion.img
+              initial={{ opacity: 0, x: 16 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              src="https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg?auto=compress&cs=tinysrgb&w=900"
+              alt="A Black developer working at a laptop"
+              loading="lazy"
+              className="h-full min-h-64 w-full object-cover sm:min-h-80"
+            />
           </div>
         </div>
       </section>
 
       {/* How it works */}
       <HowItWorks />
-            <section className="py-20 bg-white border-t">
-      <div className="container mx-auto px-4 max-w-5xl">
-        {/* Heading */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Every Organization Is Verified
-          </h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Before posting any opportunity, organizations must complete a verification process using official business documents.
-          </p>
-        </div>
+      <section className="bg-[#f3f7fa] py-20 md:py-24">
+        <div className="container mx-auto max-w-7xl px-5 sm:px-8">
+          <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="mx-auto max-w-2xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#008e9e]">Trust by design</p>
+            <h2 className="mt-3 text-3xl font-bold text-[#06234a] md:text-4xl">Every organization is verified.</h2>
+            <p className="mt-4 text-[#64748b]">A thoughtful review process helps students approach opportunities with confidence.</p>
+          </motion.div>
 
-        {/* Content */}
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-6 rounded-xl border bg-card">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-              <Building2 className="h-6 w-6 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Registered Companies</h3>
-            <p className="text-sm text-muted-foreground">
-              Only legally registered organizations can create accounts and post internships.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-xl border bg-card">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-              <FileCheck className="h-6 w-6 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Document Review</h3>
-            <p className="text-sm text-muted-foreground">
-              Business registration documents are reviewed before approval is granted.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-xl border bg-card">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-              <ShieldCheck className="h-6 w-6 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Safe Opportunities</h3>
-            <p className="text-sm text-muted-foreground">
-              Students can apply with confidence knowing every listing is verified.
-            </p>
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
+            {[
+              { icon: Building2, title: "Registered companies", description: "Organizations submit business details before posting opportunities." },
+              { icon: FileCheck, title: "Document review", description: "Registration documents are reviewed before approval is granted." },
+              { icon: ShieldCheck, title: "Safer opportunities", description: "Verification adds a layer of trust to the internship search." },
+            ].map((item, index) => (
+              <motion.article key={item.title} initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: index * 0.09 }} className="flex gap-4 border-l-2 border-[#e5a72e] bg-white p-5 sm:p-6">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#e1f2f4] text-[#007f8d]"><item.icon className="h-5 w-5" /></span>
+                <div>
+                  <h3 className="font-semibold text-[#06234a]">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#64748b]">{item.description}</p>
+                </div>
+              </motion.article>
+            ))}
           </div>
         </div>
-
-        {/* Bottom note */}
-        <div className="mt-12 text-center text-sm text-muted-foreground">
-          This process helps eliminate fake listings and improves trust across the platform.
-        </div>
-      </div>
-    </section>
-     
+      </section>
 
       <Footer />
     </div>
+    </MotionConfig>
   );
 }
