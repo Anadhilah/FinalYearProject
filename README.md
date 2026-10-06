@@ -1,64 +1,78 @@
 # InternshipConnect
 
-InternshipConnect is a role-based internship management platform for universities, students, recruiters, company supervisors, faculty coordinators, department coordinators, and administrators.
+InternshipConnect is a role-based internship and placement management platform designed for universities, students, recruiters, faculty coordinators, department coordinators, supervisors, and administrators.
 
-The platform manages the complete internship lifecycle:
+The project solves a common problem in internship programmes: the lifecycle is fragmented across emails, spreadsheets, messages, and manual approvals. InternshipConnect brings that process into a single structured system with authentication, role-aware dashboards, application workflows, task tracking, communication, and reporting.
 
-1. User registration, email verification, onboarding, and role activation.
-2. Student profiles, CVs, internship discovery, and applications.
-3. Department-level application review and coordinator support.
-4. Recruiter internship management and applicant review.
-5. Company supervisor assignment and task-based student progress tracking.
-6. Faculty coordinator oversight of assigned students, placements, supervisor summaries, and feedback.
-7. Department coordinator oversight of students, organisations, applications, and fallback summary visibility.
-8. Real-time messaging, meetings, file uploads, and protected role-specific dashboards.
+## Project Objectives
 
-This repository contains the frontend application and the Supabase database schema, migrations, policies, and Edge Functions required by the system.
+The platform is built to:
 
-## Table Of Contents
-
-- [Product Scope](#product-scope)
-- [Technology Stack](#technology-stack)
-- [System Architecture](#system-architecture)
-- [User Roles](#user-roles)
-- [Functional Requirements](#functional-requirements)
-- [Non-Functional Requirements](#non-functional-requirements)
-- [Application Routes](#application-routes)
-- [Core Workflows](#core-workflows)
-- [Database Design](#database-design)
-- [Security And Access Control](#security-and-access-control)
-- [Project Structure](#project-structure)
-- [Local Development](#local-development)
-- [Environment Variables](#environment-variables)
-- [Supabase Setup](#supabase-setup)
-- [Testing And Validation](#testing-and-validation)
-- [Deployment](#deployment)
-- [Operational Notes And Limitations](#operational-notes-and-limitations)
+- support internship discovery and application tracking from student to recruiter;
+- enforce role-based access through protected routes and Supabase RLS;
+- give academic coordinators visibility into student placement and department workflows;
+- let recruiters manage internships, applicants, supervisors, and communication;
+- allow supervisors to assign and review student tasks and weekly progress;
+- provide real-time messaging and meetings for coordination;
+- support mobile-first usage through a downloadable PWA experience;
+- keep all critical records in a versioned Supabase/PostgreSQL backend.
 
 ## Product Scope
 
-### Problem
+InternshipConnect is intended for the operational lifecycle of internships, not for general HR payroll or full university administration. The project focuses on:
 
-Internship programmes involve several participants and hand-offs. Students submit applications and weekly evidence, recruiters review applicants and workplace reports, supervisors monitor students at the organisation, and university coordinators oversee academic and departmental progress.
+- student onboarding and profile creation;
+- internship browsing and applications;
+- department review and coordinator approval gates;
+- recruiter onboarding and internship management;
+- company supervisor assignments and task management;
+- weekly reports, summaries, and faculty feedback;
+- communication channels between stakeholders;
+- mobile and installed-app access for field and on-the-go use.
 
-Without a shared system, these activities are commonly spread across email, spreadsheets, messaging applications, and documents. That makes it difficult to track responsibility, approval status, placement progress, and report history.
+## Core Features
 
-### Solution
+### Student experience
 
-InternshipConnect provides one authenticated web application with role-specific dashboards and database-backed workflows. The system uses Supabase for authentication, PostgreSQL data, row-level security, real-time messaging, storage, and Edge Functions.
+- sign up and complete a profile;
+- upload and manage CV content;
+- browse active internship opportunities;
+- apply to internships with details and supporting information;
+- view application status and department review status;
+- receive assigned tasks and submit progress updates;
+- participate in conversations and meetings;
+- review reports and internship progress history.
 
-### Scope Boundaries
+### Recruiter experience
 
-The system currently focuses on:
+- register and verify company information;
+- create and manage internships;
+- review and approve or reject applicant flows;
+- assign company supervisors to accepted placements;
+- monitor student progress and communication;
+- create or manage meetings and coordination conversations.
 
-- Internship discovery and placement management.
-- Application and coordinator review.
-- Persistent task assignment, completion, and student progress updates.
-- Faculty and department coordination.
-- User and organisation communication.
-- Meetings and shared report access.
+### Supervisor experience
 
-The application is not intended to replace a university student information system, payroll system, HR system, or full document management platform.
+- activate invited supervisor accounts;
+- view assigned students and internships;
+- assign tasks and monitor task completion;
+- review weekly reports and summary updates;
+- send feedback and communicate with faculty or students.
+
+### Faculty and department coordination
+
+- view student allocations and scope-based assignments;
+- review application routing and department approvals;
+- manage summaries and feedback loops;
+- access direct student or supervisor communication;
+- maintain institutional and department-level visibility.
+
+### Administrative experience
+
+- manage users and recruiter approvals;
+- review platform-level requests and coordination flows;
+- oversee recruiter, internship, and user records from a central dashboard.
 
 ## Technology Stack
 
@@ -70,550 +84,317 @@ The application is not intended to replace a university student information syst
 - React Router
 - Tailwind CSS
 - shadcn/ui and Radix UI primitives
-- Lucide React icons
+- Framer Motion
 - TanStack React Query
-- React Hook Form and Zod where form validation is required
-- Vitest and Testing Library
+- Lucide React icons
+- Vitest + Testing Library
 - Vite PWA plugin
 
-### Backend And Infrastructure
+### Backend and infrastructure
 
-- Supabase Auth for authentication and sessions.
-- Supabase PostgreSQL for application data.
-- PostgreSQL Row Level Security (RLS) for authorization at the data layer.
-- Supabase Storage for CVs, documents, and uploaded attachments.
-- Supabase Realtime for message updates.
-- Supabase Edge Functions for server-side operations such as Agora token generation and coordinator email workflows.
-- Netlify for static frontend hosting and SPA redirects.
+- Supabase Auth
+- PostgreSQL via Supabase
+- Row Level Security (RLS)
+- Supabase Storage
+- Supabase Realtime
+- Supabase Edge Functions
+- Netlify hosting for the frontend
 
-### Integrations
+### Third-party integrations
 
-- Agora RTC for video or voice call token generation.
-- Email delivery through the Supabase `send-email` Edge Function.
-- Optional public or signed URLs for uploaded files.
+- Agora RTC for video/voice meeting token generation
+- Email delivery through Supabase Edge Functions
+- Public or signed file URLs for uploaded student and recruiter documents
 
 ## System Architecture
 
-The application is a client-rendered single-page application.
+The application is a role-driven single-page frontend connected to a Supabase PostgreSQL backend.
 
 ```text
-Browser
-	|
-	v
-React + React Router + ProtectedRoute
-	|
-	+-- Contexts: AuthContext, MessagesContext, CallContext
-	+-- Pages: role-specific workflows
-	+-- Services: supabase-api.ts, chat.ts, auth.ts, agora.ts
-	|
-	v
+Browser / Mobile Device
+        |
+        v
+React + Vite + React Router
+        |
+        +-- Pages and layouts for public, student, recruiter, supervisor,
+        |   faculty coordinator, department coordinator, and admin flows
+        +-- Contexts: AuthContext, MessagesContext, CallContext
+        +-- Services: Supabase API, chat, auth, file uploads, Agora
+        |
+        v
 Supabase
-	+-- Auth
-	+-- PostgreSQL tables and RLS policies
-	+-- Storage bucket
-	+-- Realtime publication
-	+-- Edge Functions
+        +-- Auth
+        +-- PostgreSQL database
+        +-- RLS policies
+        +-- Storage buckets
+        +-- Realtime messages
+        +-- Edge Functions
 ```
 
-### Frontend Data Access
+### Frontend responsibilities
 
-Most application data access is centralized in [src/services/supabase-api.ts](src/services/supabase-api.ts). The compatibility layer in [src/services/auth.ts](src/services/auth.ts) preserves older page-level API signatures while routing requests to Supabase functions.
+The main app is organized around role-specific pages and protected layouts in [src/pages](src/pages) and [src/components/layouts](src/components/layouts). Shared business logic is centralized in service modules such as:
 
-Messaging is implemented separately in [src/services/chat.ts](src/services/chat.ts) and exposed globally through [src/contexts/MessagesContext.tsx](src/contexts/MessagesContext.tsx).
+- [src/services/supabase-api.ts](src/services/supabase-api.ts)
+- [src/services/chat.ts](src/services/chat.ts)
+- [src/services/auth.ts](src/services/auth.ts)
+- [src/services/agora.ts](src/services/agora.ts)
 
-### Authentication And Routing
+The routing and auth gate structure is defined in:
 
-[src/contexts/AuthContext.tsx](src/contexts/AuthContext.tsx) loads the authenticated Supabase user and application profile. [src/components/ProtectedRoute.tsx](src/components/ProtectedRoute.tsx) restricts routes by role. The main route map is in [src/App.tsx](src/App.tsx).
+- [src/App.tsx](src/App.tsx)
+- [src/contexts/AuthContext.tsx](src/contexts/AuthContext.tsx)
+- [src/components/ProtectedRoute.tsx](src/components/ProtectedRoute.tsx)
 
-## User Roles
+### PWA and mobile architecture
 
-The database `Role` enum supports the following roles:
+The app is configured as a progressive web app so it can be installed on supported mobile devices and desktops. This is implemented through the Vite PWA plugin in [vite.config.ts](vite.config.ts) and related metadata in [index.html](index.html).
 
-| Role | Primary responsibility |
+Key mobile/PWA features include:
+
+- standalone app display mode;
+- install prompt support for browsers that support beforeinstallprompt;
+- install route guidance at `/install`;
+- splash screen for standalone/mobile app mode;
+- mobile viewport meta tags and Apple-capable app metadata;
+- app icons and manifest metadata for installability.
+
+## User Roles and Access Model
+
+The system uses a `Role` enum in the database with the following major actors:
+
+| Role | Main responsibility |
 | --- | --- |
-| Student | Maintain a profile, browse internships, apply, manage assigned tasks, communicate, and attend meetings. |
-| Recruiter | Manage organisation information and internships, review applicants, assign company supervisors, and communicate with students. |
-| Supervisor | Monitor assigned internships, review student work, provide supervisor feedback, manage tasks, and communicate. |
-| Faculty Coordinator | Monitor faculty-level placement activity, receive supervisor summaries, provide feedback, and communicate with supervisors. |
-| Department Coordinator | Review department applications, manage department students and organisations, assign faculty coordinators, and view routed summaries. |
-| Admin | Manage users, recruiters, internships, coordinators, supervisors, and platform-level requests. |
+| `STUDENT` | profile management, applications, tasks, reports, communication |
+| `RECRUITER` | internship management, applicant review, company supervision |
+| `SUPERVISOR` | task assignment and monitoring of assigned student placements |
+| `FACULTY_COORDINATOR` | faculty-based placement oversight and feedback |
+| `DEPARTMENT_COORDINATOR` | department-level approvals and student routing |
+| `ADMIN` | platform management and system-level control |
 
-## Functional Requirements
+## Core Business Workflows
 
-### Authentication And Accounts
+### 1. Registration and onboarding
 
-- Users must be able to register with a supported role.
-- The system must create or reconcile an application profile linked to the Supabase Auth user.
-- Users must be able to log in, log out, and change their password.
-- Email verification and account activation must be supported where the role workflow requires it.
-- Protected routes must reject users who are not authenticated or do not have the required role.
-- Recruiter, supervisor, faculty coordinator, and department coordinator activation flows must preserve the account status and invitation rules defined by the database.
+1. A user signs up from the frontend.
+2. Supabase Auth creates the identity.
+3. The application creates or reconciles the matching `User` record.
+4. The role-specific onboarding flow captures profile or organisational details.
+5. Approval or activation rules are enforced according to role requirements.
 
-### Student Requirements
+### 2. Internship lifecycle
 
-- Students must be able to complete onboarding information including university, department or major, and CV information.
-- Students must be able to update their profile.
-- Students must be able to browse active internships and view internship details.
-- Students must be able to apply to internships.
-- Applications may contain cover letters, CV references, skills, question answers, dates, and department coordinator support information.
-- Students must be able to view application status.
-- Students must be able to view assigned tasks and send progress updates.
-- Students must be able to mark assigned tasks complete.
-- Students must be able to invite or associate a university supervisor where enabled by the workflow.
-- Students must be able to communicate through conversations and messages.
-- Students must be able to view meetings and shared approved reports.
+1. Recruiters create internships.
+2. Students browse and apply to open opportunities.
+3. Applications move through department review if required.
+4. Recruiters review applicants and update status.
+5. Accepted interns proceed into the placement workflow.
 
-### Recruiter Requirements
+### 3. Task-based supervision
 
-- Recruiters must be able to complete organisation onboarding and submit verification information.
-- Recruiters must be able to manage company profile information.
-- Recruiters must be able to create, update, and delete their own internships.
-- Recruiters must be able to view applicants for their internships.
-- Recruiters must be able to review applications and update permitted application statuses.
-- Recruiters must be able to assign active company supervisors to accepted internship applications.
-- Recruiters must be able to create company supervisor accounts and assign them to their internships.
-- Recruiters must be able to communicate with students.
-- Recruiters must be able to create or manage meetings with students.
+1. A recruiter assigns a supervisor to an accepted internship.
+2. The supervisor creates tasks for the student.
+3. The student updates progress and marks tasks complete.
+4. The supervisor reviews updates and creates summaries for faculty.
+5. The faculty coordinator provides feedback and closes the loop.
 
-### Supervisor Requirements
+### 4. Messaging and meetings
 
-- Supervisors must be able to activate an invited supervisor account.
-- Supervisors must see only internships assigned to them.
-- Supervisors must be able to view assigned students.
-- Supervisors must be able to review weekly reports.
-- Supervisors must be able to approve reports or request changes with a supervisor comment.
-- Supervisors must be able to assign or manage student tasks where supported by the page workflow.
-- Supervisors must be able to communicate with participants.
+- users can start or join conversations with approved participants;
+- messages are stored in the database;
+- Supabase Realtime pushes new messages when enabled;
+- meetings are tracked with participant and scheduling metadata;
+- Agora tokens are generated for real-time calling flows.
 
-### Faculty Coordinator Requirements
+### 5. Department and institutional coordination
 
-- Faculty coordinators must see a real-data overview of scoped students, active internships, unplaced students, pending applications, open tasks, and student updates.
-- Faculty coordinators must be able to view departments in their assigned scope.
-- Faculty coordinators must be able to view assigned students as cards.
-- Each assigned-student card must provide a details and management action.
-- Student details must show real profile, department, assignment, placement, supervisor, and report information.
-- Faculty coordinators must be able to start a real conversation with an assigned student.
-- Faculty coordinators must be able to receive period-based summaries generated from supervisor tasks.
-- Faculty coordinators must be able to send persistent feedback to company supervisors.
-- Faculty coordinators and company supervisors must be able to open direct conversations.
-- Faculty coordinators must be able to refresh displayed data.
-
-### Department Coordinator Requirements
-
-- Department coordinators must be able to view department-level overview information.
-- Department coordinators must be able to review applications requiring department approval.
-- Department coordinators must be able to view students and their placements.
-- Department coordinators must be able to view organisations hosting students.
-- Department coordinators must be able to assign faculty coordinators to eligible students.
-- Department coordinators must be able to assign supervisors where supported by the workflow.
-- Department coordinators must be able to view task-based summaries for their routed students, including students without a faculty assignment.
-- Department coordinators must be able to communicate with faculty coordinators, students, and other permitted participants.
-
-### Administrator Requirements
-
-- Administrators must be able to view platform statistics and recent activity.
-- Administrators must be able to manage users.
-- Administrators must be able to manage recruiter verification.
-- Administrators must be able to manage internships.
-- Administrators must be able to manage supervisor records.
-- Administrators must be able to review coordinator requests and invitations.
-
-### Communication Requirements
-
-- Users must be able to participate in conversations they belong to.
-- Messages must be stored in the database rather than only in browser state.
-- Conversation lists must show real participants and message history.
-- New messages should be reflected through Supabase Realtime when the table is enabled for realtime.
-- The application must retain a polling fallback for message freshness.
-
-### File And Report Requirements
-
-- Uploaded files must be stored in Supabase Storage.
-- Sensitive files should use signed URLs where appropriate.
-- Weekly reports must preserve the student, internship, week, content, review status, reviewer, comments, and timestamps.
-- Report review transitions must follow the defined multi-stage status workflow.
-
-## Non-Functional Requirements
-
-### Security
-
-- All protected application routes must require authentication.
-- Role authorization must be enforced both in the frontend route guard and in Supabase RLS policies.
-- Users must only read or modify records permitted by their role, ownership, assignment, or scope.
-- Users must not be able to submit records on behalf of another student.
-- Recruiters must only manage their own internships, applicants, and related reports.
-- Supervisors must only access assigned internships and related reports.
-- Coordinator access must respect institution, faculty, department, and direct student assignments.
-- Secrets must not be committed to the repository. Frontend environment variables must contain only public Supabase client configuration.
-- Uploaded file access must use the appropriate public or signed URL policy.
-
-### Availability And Reliability
-
-- The frontend should fail with a useful error state when a Supabase request fails.
-- Pages that load remote data should expose loading and empty states.
-- Realtime messaging should degrade gracefully to polling when realtime delivery is unavailable.
-- Database migrations should be additive and safe to rerun where possible.
-- Critical database operations should validate status transitions and ownership server-side through RLS and query conditions.
-
-### Performance
-
-- Initial page loads should avoid unnecessary broad queries where a scoped query is available.
-- Frequently reused data access should remain in service functions rather than being duplicated across pages.
-- Large lists should be prepared for pagination or incremental loading as data volume grows.
-- Production builds should be optimized through Vite bundling and PWA asset generation.
-
-### Usability And Accessibility
-
-- Role dashboards should use terminology appropriate to the responsible user.
-- Forms must expose validation and actionable error messages.
-- Interactive controls must have visible labels or accessible icon semantics.
-- Layouts must work on desktop and mobile widths.
-- Loading, empty, success, and failure states must be visually distinguishable.
-- Destructive or irreversible operations should require an intentional user action.
-
-### Maintainability
-
-- Shared database access should remain centralized in service modules.
-- Shared UI primitives should use the existing component library.
-- New role-specific pages should be mounted under the appropriate protected layout.
-- Database changes should be recorded as migrations and reflected in the schema documentation.
-- Tests should cover business logic, critical API transformations, and high-risk workflows.
-
-## Application Routes
-
-### Public Routes
-
-| Route | Purpose |
-| --- | --- |
-| `/` | Public landing or entry page. |
-| `/login` | Authentication. |
-| `/register` | Account registration. |
-| `/install` | PWA installation information. |
-| `/change-password` | Authenticated password change. |
-| `/supervisor/activate/:token` | Supervisor invitation activation. |
-| `/coordinator/activate/:token` | Coordinator activation workflow. |
-
-### Student Routes
-
-| Route | Purpose |
-| --- | --- |
-| `/student` | Student overview. |
-| `/student/profile` | Student profile and onboarding data. |
-| `/student/internships` | Browse internships. |
-| `/student/internships/:id` | Internship details. |
-| `/student/internships/:id/apply` | Internship application. |
-| `/student/applications` | Student applications. |
-| `/student/tasks` | Assigned tasks and progress updates. |
-| `/student/messages` | Student conversations. |
-| `/student/meetings` | Student meetings. |
-
-### Recruiter Routes
-
-| Route | Purpose |
-| --- | --- |
-| `/recruiter` | Recruiter overview. |
-| `/recruiter/profile` | Organisation profile. |
-| `/recruiter/post` | Create an internship. |
-| `/recruiter/manage` | Manage internships. |
-| `/recruiter/applicants` | Review applicants. |
-| `/recruiter/supervisors` | Create company supervisor accounts and view available supervisors. |
-| `/recruiter/messages` | Recruiter conversations. |
-| `/recruiter/meetings` | Recruiter meetings. |
-
-### Supervisor Routes
-
-| Route | Purpose |
-| --- | --- |
-| `/supervisor` | Supervisor overview. |
-| `/supervisor/students` | Assigned students. |
-| `/supervisor/students/:studentId` | Student details. |
-| `/supervisor/students/:studentId/tasks` | Student tasks. |
-| `/supervisor/summaries` | Generate task-based summaries and send them to faculty coordinators. |
-| `/supervisor/messages` | Supervisor conversations. |
-
-### Faculty Coordinator Routes
-
-| Route | Purpose |
-| --- | --- |
-| `/faculty-coordinator` | Faculty overview. |
-| `/faculty-coordinator/departments` | Faculty-scoped departments. |
-| `/faculty-coordinator/reports` | Receive supervisor summaries, send feedback, and message supervisors. |
-| `/faculty-coordinator/messages` | Faculty coordinator conversations. |
-| `/faculty-coordinator/students` | Assigned student cards. |
-| `/faculty-coordinator/students/:studentId` | Student details and management actions. |
-| `/faculty-coordinator/placements` | Assigned-student placement table. |
-
-### Department Coordinator Routes
-
-| Route | Purpose |
-| --- | --- |
-| `/department-coordinator` | Department overview. |
-| `/department-coordinator/internship-approval` | Department application review. |
-| `/department-coordinator/students` | Department students. |
-| `/department-coordinator/faculty-coordinators` | Faculty coordinator assignments. |
-| `/department-coordinator/organisations` | Hosting organisations. |
-| `/department-coordinator/summaries` | View summaries for routed students, including fallback visibility. |
-| `/department-coordinator/placements` | Department placement view. |
-
-## Core Workflows
-
-### Registration And Onboarding
-
-1. A user registers through the frontend.
-2. Supabase Auth creates the authentication identity.
-3. The database trigger or profile service creates or reconciles the matching `User` record.
-4. The user verifies email when required.
-5. Role-specific onboarding collects profile, organisation, or coordinator information.
-6. Protected routing uses the profile role and approval state to determine access.
-
-### Internship Application
-
-1. A student browses active internships.
-2. The student opens internship details and submits an application.
-3. The application stores the student, internship, optional department coordinator, supporting documents, and application metadata.
-4. If department review is required, the application enters the department review workflow.
-5. After department approval, the application can continue to organisation review.
-6. Recruiters update the application through permitted statuses.
-
-### Task-Based Progress Reporting
-
-1. A recruiter assigns an active company supervisor to an accepted internship.
-2. The supervisor assigns tasks to the student with a due date and priority.
-3. The student views tasks from the Tasks tab, sends progress updates, and marks work complete.
-4. The supervisor reviews task completion and student updates.
-5. The supervisor generates a summary for this week, this month, or last month.
-6. The summary is sent to the assigned faculty coordinator.
-7. The faculty coordinator sends feedback and can open a direct conversation with the supervisor.
-8. Department coordinators can view summaries for their routed students when no faculty assignment exists.
-
-### Faculty Coordinator Assignment
-
-1. A department or administrative workflow creates a `CoordinatorAssignment` record.
-2. The assignment may define institution, faculty, department, or a direct `studentId`.
-3. The assignment becomes visible to the faculty coordinator when its status is active and the scope matches.
-4. Faculty pages query affiliations and assignments to calculate the visible student set.
-5. Faculty coordinators can inspect assigned students, communicate, review eligible reports, and forward completed reports.
-
-### Messaging
-
-1. A user starts or opens a conversation with another permitted user.
-2. A `Conversation` record and two `ConversationParticipant` records are created if no shared conversation exists.
-3. Messages are stored in `Message`.
-4. The `MessagesContext` loads conversations, tracks unread messages, and maintains the selected conversation.
-5. Supabase Realtime delivers new messages when configured; polling provides a fallback.
-
-### Meetings
-
-Meetings associate students and recruiters through the `Meeting` table. The application stores the title, scheduled time, type, status, participants, and timestamps. Agora token generation is handled by the `agora-token` Edge Function when calling functionality is used.
+The project includes academic scope data such as institutions, faculties, departments, and staff assignments to support routing, oversight, and approvals for department-based workflows.
 
 ## Database Design
 
-The canonical schema is [supabase/schema.sql](supabase/schema.sql). The database uses text primary keys, camelCase column names, PostgreSQL enums, foreign keys, timestamps, and RLS policies.
+The canonical database schema is in [supabase/schema.sql](supabase/schema.sql). The backend uses PostgreSQL with text-based IDs, camelCase columns, enums, relational references, timestamps, and RLS rules.
 
-### Enumerations
+### Major schema domains
 
-#### `Role`
+#### User and access
 
-`STUDENT`, `RECRUITER`, `ADMIN`, `SUPERVISOR`, `FACULTY_COORDINATOR`, `DEPARTMENT_COORDINATOR`.
+- `User`: application profile tied to Supabase Auth
+- `Role`: system role enum
+- `RecruiterStatus`: recruiter verification or approval state
 
-#### `RecruiterStatus`
+#### Internship and placement
 
-`PENDING`, `APPROVED`, `REJECTED`.
+- `Internship`: internship opportunity and metadata
+- `Application`: student internship application record
+- `StudentInstitutionAffiliation`: academic affiliation to institution/faculty/department
+- `CoordinatorAssignment`: assigned coordinator scope for academic oversight
 
-#### `InternshipStatus`
+#### Communication and collaboration
 
-`ACTIVE`, `CLOSED`, `DRAFT`.
+- `Conversation`: chat container record
+- `ConversationParticipant`: participants in a conversation
+- `Message`: message payload and metadata
+- `Meeting`: meeting records for student/recruiter coordination
 
-#### `ApplicationStatus`
+#### Supervision and reporting
 
-`pending`, `accepted`, `rejected`, `reviewing`.
+- `SupervisorTask`: task assignments and updates
+- `WeeklyLogbookReport`: student report weeks and progress evidence
+- `SupervisorSummary`: summary sent from supervisors to faculty coordinators
 
-### Main Tables
+#### Invitations and onboarding
 
-| Table | Purpose | Important relationships |
-| --- | --- | --- |
-| `User` | Application profile linked to Supabase Auth. Stores role, identity, CV, university, major, organisation fields, and approval state. | Referenced by most user-owned records. |
-| `Institution` | University or institution record. | Parent of faculties, departments, and affiliations. |
-| `FacultySchool` | Faculty or school within an institution. | Belongs to `Institution`; parent of departments. |
-| `Department` | Academic department. | Belongs to an institution and optionally a faculty. |
-| `StudentInstitutionAffiliation` | Connects a student to an institution, faculty, and department. | References `User`, `Institution`, `FacultySchool`, and `Department`. |
-| `Internship` | Internship opportunity posted by a recruiter. | References recruiter and optional company supervisor. |
-| `Application` | Student application for an internship. | References student, internship, and optional department coordinator. |
-| `SupervisorTask` | Persistent task assignment, completion, priority, and student update. | References student, supervisor, and internship. |
-| `SupervisorSummary` | Period-based supervisor summary and faculty feedback. | References student, supervisor, faculty coordinator, and internship. |
-| `CoordinatorAssignment` | Institution, faculty, department, or direct student coordinator assignment. | References coordinator, assigning user, student scope, and academic scope. |
-| `Conversation` | Chat container and last activity timestamp. | Has many participants and messages. |
-| `ConversationParticipant` | User membership in a conversation. | References conversation and user. |
-| `Message` | Individual chat message. | References conversation and sender. |
-| `Meeting` | Scheduled student-recruiter meeting. | References student and recruiter. |
-| `SupervisorInvitation` | Invitation and activation record for a university or company supervisor. | References student, optional internship, and activation user. |
-| `CoordinatorInvitation` | Invitation and activation record for coordinators. | References creator and activation user. |
+- `SupervisorInvitation`
+- `CoordinatorInvitation`
+- `DepartmentCoordinatorRequest`
 
-### Key Relationships
+### Key relationships
 
 ```text
-Institution
-	-> FacultySchool
-			-> Department
-					-> StudentInstitutionAffiliation <- User (student)
-
-User (recruiter)
-	-> Internship
-			-> Application <- User (student)
-			-> SupervisorTask <- User (student)
-			-> SupervisorSummary <- User (student)
-			-> User (supervisor)
-
-User (coordinator)
-	-> CoordinatorAssignment
-
-Conversation
-	-> ConversationParticipant -> User
-	-> Message -> User (sender)
+User (student) --< Application >-- Internship
+User (recruiter) --< Internship
+Internship --< SupervisorTask --< User (student)
+Internship --< WeeklyLogbookReport --< User (student)
+User (supervisor) --< SupervisorSummary --< User (faculty-coordinator)
+Conversation --< ConversationParticipant --< User
+Conversation --< Message --< User
 ```
 
-### Important Columns
+### Database design principles
 
-#### `User`
+- text IDs are used consistently across the project;
+- direct ownership, scope, and assignment are enforced in data relationships;
+- role and workflow state are stored as enums or status columns;
+- RLS is treated as a real security layer, not just a frontend convenience;
+- database changes are tracked in incremental migrations under [supabase/migrations](supabase/migrations).
 
-- `id`: text primary key, normally matching the Supabase Auth user ID.
-- `role`: application role enum.
-- `name`, `email`: identity fields.
-- `cvUrl`: stored CV path or URL.
-- `university`, `major`: student academic information.
-- `company`, `industry`, and organisation fields: recruiter information.
-- `companyRecruiterId`: recruiter who created a company supervisor account.
-- `isApproved`, `coordinatorStatus`, `recruiterStatus`: activation and approval state.
+## Security and Access Control
 
-#### `Application`
+Security is implemented in both the frontend and the database:
 
-- `studentId`, `internshipId`: required ownership and target references.
-- `status`: organisation application state.
-- `departmentCoordinatorId`: selected department coordinator where applicable.
-- `departmentReviewStatus`, `departmentApprovalRequired`, and `coordinatorSupportRequested`: workflow fields added by migrations.
-- `resumeUrl`, `coverLetterUrl`, `coverLetter`, and question-answer fields: submitted application data.
+### Frontend access controls
 
-#### `SupervisorTask`
+The app restricts route access through [src/components/ProtectedRoute.tsx](src/components/ProtectedRoute.tsx) and checks auth state in [src/contexts/AuthContext.tsx](src/contexts/AuthContext.tsx).
 
-- `studentId`, `supervisorId`, `internshipId`: assignment ownership.
-- `title`, `dueDate`, `priority`, `status`: task workflow fields.
-- `studentUpdate`, `studentUpdatedAt`: progress communication from the student.
-- `completedAt`: completion timestamp.
+### Database access controls
 
-#### `SupervisorSummary`
+Supabase RLS policies enforce who can read, write, update, or delete records. This matters because multiple roles can share the same tables but should only see their own permitted scope.
 
-- `periodStart`, `periodEnd`, `title`, `summary`: generated reporting content.
-- `facultyCoordinatorId`: recipient assignment.
-- `facultyFeedback`, `facultyFeedbackAt`: response from the faculty coordinator.
+Examples:
 
-## Security And Access Control
+- students only read their own applications and progress;
+- recruiters only manage their own internships and applicants;
+- supervisors only access assigned internship contexts;
+- coordinators only see records within their institution, department, or assigned student scope;
+- admins can manage platform-level records.
 
-### Frontend Authorization
+### File and storage protection
 
-Routes are wrapped with [ProtectedRoute.tsx](src/components/ProtectedRoute.tsx), which checks authentication and the normalized application role before rendering a portal.
+Uploaded documents and CVs are accessed through Supabase Storage with appropriate public or signed URL behavior. See [supabase/migrations/20240103_storage_upload_policies.sql](supabase/migrations/20240103_storage_upload_policies.sql) for storage policy handling.
 
-### Database Authorization
+## PWA and Mobile Experience
 
-Frontend checks are not the security boundary. Supabase RLS policies enforce access on the database tables. Examples include:
+This app is not only a desktop dashboard. It is intended to work as a mobile-first installed web app.
 
-- Students read and create their own applications and update their assigned tasks.
-- Recruiters read and update applications and internships associated with their own internships.
-- Supervisors read and update tasks and summaries associated with internships assigned to them.
-- Coordinators read data within institution, faculty, department, or direct student scope.
-- Conversation participants read only conversations and messages to which they belong.
-- Administrators manage platform records according to admin policies.
+### PWA configuration
 
-The scope helper functions in the schema and coordinator migrations avoid recursive RLS checks when resolving the current user's role and affiliations.
+The project sets up PWA metadata in [vite.config.ts](vite.config.ts), including:
 
-### Storage Security
+- `display: "standalone"`
+- app manifest metadata
+- icons for mobile install
+- screenshots for narrow and wide layouts
+- service worker registration for caching and app updates
 
-File upload and retrieval are implemented through [src/services/supabase-api.ts](src/services/supabase-api.ts). Private files should be accessed through signed URLs. Storage policies are defined in [supabase/migrations/20240103_storage_upload_policies.sql](supabase/migrations/20240103_storage_upload_policies.sql).
+### Mobile install behavior
 
-### Realtime Security
+The install page is implemented in [src/pages/Install.tsx](src/pages/Install.tsx).
 
-Message subscriptions run through Supabase Realtime. Database read policies still determine which records a participant can retrieve; realtime is not intended to bypass RLS.
+It supports:
+
+- browser install prompt detection;
+- manual installation guidance for iOS and Android/Chrome;
+- app detection when already installed;
+- standalone-mode styling and splash screen behavior.
+
+The document head in [index.html](index.html) additionally includes mobile app metadata such as:
+
+- viewport configuration;
+- theme color;
+- Apple mobile app capability and status bar configuration;
+- standalone splash-screen support.
+
+This is a key product requirement because internship coordinators, recruiters, and students may need to access the app quickly on phones and tablets.
 
 ## Project Structure
 
 ```text
 internship-connect-ui/
-├── public/                         Static files and robots.txt
+├── public/
 ├── src/
-│   ├── api/                        API compatibility and tests
-│   ├── components/                 Shared UI, layouts, chat, and guards
-│   ├── contexts/                   Auth, messages, and call state
-│   ├── data/                       Small application data modules
-│   ├── hooks/                      Reusable React hooks
-│   ├── lib/                        Supabase config, navigation, status helpers
-│   ├── pages/                      Public and role-specific pages
-│   ├── services/                   Supabase, chat, auth, upload, and Agora logic
-│   ├── test/                       Test setup and examples
-│   └── types/                      Shared TypeScript types
+│   ├── api/
+│   ├── components/
+│   ├── contexts/
+│   ├── data/
+│   ├── hooks/
+│   ├── lib/
+│   ├── pages/
+│   ├── services/
+│   ├── test/
+│   └── types/
 ├── supabase/
-│   ├── functions/                  Supabase Edge Functions
-│   ├── migrations/                 Incremental database changes
-│   ├── deno.json                   Edge Function configuration
-│   └── schema.sql                  Canonical schema and baseline policies
-├── package.json                    Scripts and dependencies
-├── vite.config.ts                  Vite configuration
-├── vitest.config.ts                Test configuration
-├── tailwind.config.ts              Tailwind configuration
-└── netlify.toml                    Netlify build and SPA redirects
+│   ├── functions/
+│   ├── migrations/
+│   ├── deno.json
+│   └── schema.sql
+├── .env.example (if added by environment setup)
+├── index.html
+├── netlify.toml
+├── package.json
+├── tailwind.config.ts
+├── tsconfig.json
+├── vite.config.ts
+├── vitest.config.ts
+└── README.md
 ```
 
 ## Local Development
 
 ### Prerequisites
 
-- Node.js 20 or later. Netlify is configured to use Node 20.
-- npm.
-- A Supabase project.
-- Supabase project URL and anonymous key.
-- Optional Agora credentials and deployed Edge Function for calling.
+- Node.js 20+
+- npm
+- a Supabase project
+- a valid Supabase URL and anon key
+- optional Agora credentials and deployed Supabase Edge Functions
 
 ### Install
 
-```sh
-git clone <repository-url>
-cd internship-connect-ui
+```bash
 npm install
 ```
 
-### Configure Environment
+### Run locally
 
-Create a `.env.local` file in `internship-connect-ui` and add the variables described in [Environment Variables](#environment-variables).
-
-### Start Development
-
-```sh
+```bash
 npm run dev
 ```
 
-Vite will print the local URL, normally `http://localhost:5173`.
+### Production build
 
-### Production Build
-
-```sh
+```bash
 npm run build
 ```
 
-### Preview Production Build
+### Preview production build
 
-```sh
+```bash
 npm run preview
 ```
 
 ## Environment Variables
 
-The frontend reads these values through `import.meta.env`:
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `VITE_SUPABASE_URL` | Yes | Supabase project URL. |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Public Supabase anonymous client key. |
-| `VITE_SITE_URL` | Recommended | Deployed site URL used for share links and email callbacks. |
-
-Example:
+The frontend expects these values to be available at runtime:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -621,124 +402,71 @@ VITE_SUPABASE_ANON_KEY=your-public-anon-key
 VITE_SITE_URL=https://your-domain.example
 ```
 
-Do not place service-role keys, database passwords, private Agora secrets, or email provider credentials in frontend environment variables. Those belong in Supabase project or Edge Function secrets.
+Do not expose service-role secrets, DB passwords, or private provider credentials in the browser.
 
 ## Supabase Setup
 
-### Baseline Schema
+### Apply schema and migrations
 
-The baseline schema is in [supabase/schema.sql](supabase/schema.sql). It creates or updates the core enums, tables, RLS policies, helper functions, grants, and signup trigger.
+The project has a canonical schema in [supabase/schema.sql](supabase/schema.sql). For a fresh environment, apply the schema first, then run migrations in order under [supabase/migrations](supabase/migrations).
 
-Apply it in the Supabase SQL editor for a new or compatible project.
+### Edge functions
 
-### Migrations
+The project includes functions for:
 
-The migration directory contains incremental changes for:
+- `agora-token`
+- `create-faculty-coordinator`
+- `invite-faculty-coordinator`
+- `create-company-supervisor`
+- `send-email`
 
-- Profile RLS and signup reconciliation.
-- Realtime messages.
-- Storage upload policies.
-- Supervisor role, task assignment, and task completion.
-- Department coordinator registration and application review.
-- Institution, faculty, department, and affiliation access.
-- Student-to-faculty-coordinator and supervisor assignments.
-- Recruiter-created company supervisor accounts and recruiter-scoped supervisor visibility.
-- Selected department coordinator support.
-- Faculty coordinator invitations and activation behavior.
-- Temporary faculty passwords and approved coordinator scopes.
-- Period-based supervisor summaries and faculty feedback.
+These should be deployed through the Supabase project configuration and configured with the necessary secret values.
 
-Apply migrations in filename order. Do not apply only a late migration to a database that has not received the earlier schema or helper functions it depends on.
+### Realtime requirements
 
-The task and summary migrations are [supabase/migrations/20240201_supervisor_tasks.sql](supabase/migrations/20240201_supervisor_tasks.sql) and [supabase/migrations/20240202_supervisor_summaries.sql](supabase/migrations/20240202_supervisor_summaries.sql).
+If live message delivery is needed, the `Message` table must be enabled in the Supabase Realtime publication. The app is written with a polling fallback so it can remain functional even when realtime is unavailable.
 
-### Edge Functions
+## Testing and Validation
 
-The repository includes these Supabase Edge Function areas:
+Available scripts:
 
-| Function | Purpose |
-| --- | --- |
-| `agora-token` | Generates call tokens for Agora sessions. |
-| `create-faculty-coordinator` | Creates or provisions faculty coordinator accounts. |
-| `invite-faculty-coordinator` | Sends or manages faculty coordinator invitations. |
-| `create-company-supervisor` | Creates a Company Supervisor account for an approved recruiter and returns a one-time temporary password. |
-| `send-email` | Sends application email notifications through the configured provider. |
-
-Deploy functions using the Supabase CLI or the project deployment workflow. Configure provider secrets in Supabase rather than in the browser.
-
-### Realtime
-
-The `Message` table must be enabled for the Supabase Realtime publication for live message events. The application also polls conversations as a fallback.
-
-## Testing And Validation
-
-Available package scripts:
-
-```sh
-npm run test       # Run Vitest once
-npm run test:watch # Run Vitest in watch mode
-npm run lint       # Run ESLint
-npm run build      # Create the production Vite build
-```
-
-Existing tests cover examples such as:
-
-- API behavior.
-- Chat window interactions.
-- Registration logic.
-- Role navigation.
-
-Recommended additions for future changes:
-
-- RLS integration tests for every role and table.
-- Application status transition tests.
-- Task ownership, completion, summary delivery, and feedback tests.
-- Faculty scope filtering tests for institution, faculty, department, and direct student assignments.
-- CV reuse and application-specific CV replacement tests.
-- Message permission and conversation creation tests.
-
-Before opening a pull request, run:
-
-```sh
-npm run lint
+```bash
 npm run test
+npm run test:watch
+npm run lint
 npm run build
 ```
 
+The repository already includes tests for project logic and key flows. Recommended future validation includes:
+
+- role-based permission tests;
+- internship status transition tests;
+- task completion and summary review tests;
+- coordinator scope and access tests;
+- application review workflow tests;
+- message permission tests.
+
 ## Deployment
 
-Netlify is configured in [netlify.toml](netlify.toml):
+The frontend is designed for Netlify deployment via [netlify.toml](netlify.toml). The configuration includes SPA fallback routing and a production build pipeline using Vite. Supabase migrations and Edge Functions must be deployed separately from the frontend application.
 
-- Build command: `npm run build`.
-- Publish directory: `dist`.
-- Node version: 20.
-- SPA fallback: all unmatched paths redirect to `index.html`.
-- Auth callback paths under `/auth/*` redirect to `index.html` for React Router handling.
+## Important Project Notes
 
-Configure the required `VITE_*` variables in the Netlify site settings. Deploy Supabase migrations and Edge Functions separately from the frontend build.
+- The app is heavily role-driven and depends on correct Supabase permissions.
+- The frontend should never be treated as the sole security layer.
+- Database migrations are part of the project source of truth and should be applied in sequence.
+- The PWA install flow is a core product feature, especially for mobile users.
+- The project is intended for internship coordination, not as a general-purpose ERP or university management system.
 
-## Operational Notes And Limitations
+## Contribution Guidance
 
-- The frontend is a Vite single-page application; direct navigation to nested routes requires the configured SPA fallback.
-- Supabase RLS policies are essential. A successful frontend build does not prove that the deployed database policies are correct.
-- Existing databases may differ from the repository schema because the project has evolved through migrations. Inspect live enum and table definitions before applying corrective SQL.
-- Some older pages and service functions may retain compatibility fields or fallback labels for legacy workflows.
-- The current production bundle reports a large-chunk warning from Vite. Code splitting can be introduced later if startup performance becomes a concern.
-- File URL visibility depends on the storage policy and whether the caller requests a public or signed URL.
-- Realtime requires the relevant table to be included in the Supabase publication and may not work until that configuration is applied.
-- The application should be tested with representative users for every role because RLS behavior depends on both the database role and the user's scope records.
+1. keep data access centralized in service layers;
+2. respect RLS and role-based scoping in all database changes;
+3. add migrations for schema updates rather than editing deployed DB state manually;
+4. maintain accessible, mobile-friendly UI patterns;
+5. validate lint, tests, and production build before merging updates.
 
-## Contribution Guidelines
+## License
 
-1. Keep role-specific changes inside the corresponding layout, page, service, and migration surfaces.
-2. Do not bypass RLS with client-side assumptions.
-3. Add a migration for database changes; do not rely on manual production edits.
-4. Preserve existing public route and service contracts unless a migration plan is included.
-5. Add loading, error, empty, and success states for remote workflows.
-6. Avoid hard-coded production data in pages or dashboard metrics.
-7. Run lint, tests, and the production build before submitting a change.
-
-## License And Ownership
-
-No license is declared in the current repository. Add an explicit license before distributing the project outside its owning organisation.
+No explicit license is currently declared in this repository. If this project is to be distributed externally or reused beyond the owning organisation, an explicit license should be added.
 
