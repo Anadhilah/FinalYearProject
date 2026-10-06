@@ -10,11 +10,14 @@ import { apiAuthenticationServiceDelete, apiAuthenticationServiceGet, apiAuthent
 import { startConversation } from "@/services/chat";
 import { useToast } from "@/hooks/use-toast";
 
-type AppStatus = "pending" | "accepted" | "rejected" | "reviewing";
+type AppStatus = "pending" | "accepted" | "rejected" | "reviewing" | "offer_sent";
 
 function toAppStatus(status: string | undefined): AppStatus {
   const lower = (status || 'pending').toLowerCase();
-  const validStatuses: string[] = ['accepted', 'rejected', 'reviewing'];
+  const validStatuses: string[] = ['accepted', 'rejected', 'reviewing', 'offer_sent'];
+  if (lower === 'offer_accepted') return 'accepted';
+  if (lower === 'offer_declined') return 'rejected';
+  if (lower === 'offer_sent') return 'offer_sent';
   return validStatuses.includes(lower) ? (lower as AppStatus) : 'pending';
 }
 
@@ -205,11 +208,11 @@ export default function Applicants() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Select onValueChange={(value) => handleStatusUpdate(app.id, value)}>
-                          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Action" /></SelectTrigger>
+                          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Action" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="accepted">Accept</SelectItem>
-                            <SelectItem value="rejected">Reject</SelectItem>
+                            <SelectItem value="OFFER_SENT">Send offer</SelectItem>
                             <SelectItem value="reviewing">Review</SelectItem>
+                            <SelectItem value="rejected">Reject</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button variant="ghost" size="icon" onClick={() => void removeApplication(app.id)} disabled={deletingId === app.id} title="Delete application">

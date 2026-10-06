@@ -25,7 +25,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
-  create type "ApplicationStatus" as enum ('pending', 'accepted', 'rejected', 'reviewing');
+  create type "ApplicationStatus" as enum ('PENDING', 'ACCEPTED', 'REJECTED', 'REVIEWING', 'OFFER_SENT', 'OFFER_ACCEPTED', 'OFFER_DECLINED');
 exception when duplicate_object then null; end $$;
 
 do $$ begin

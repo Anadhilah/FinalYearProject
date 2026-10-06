@@ -4,13 +4,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
-import { apiAuthenticationServiceGet } from "@/services/auth";
+import { apiAuthenticationServiceGet, apiAuthenticationServicePut } from "@/services/auth";
 
-type AppStatus = "pending" | "accepted" | "rejected" | "reviewing" | "department_review";
+type AppStatus = "pending" | "accepted" | "rejected" | "reviewing" | "department_review" | "offer_sent";
 
 function toAppStatus(status: string | undefined, departmentApprovalRequired = false): AppStatus {
   if (departmentApprovalRequired) return "department_review";
   const lower = (status || 'pending').toLowerCase();
+  if (lower === 'offer_sent') return 'offer_sent';
+  if (lower === 'offer_accepted') return 'accepted';
+  if (lower === 'offer_declined') return 'rejected';
   const validStatuses: string[] = ['accepted', 'rejected', 'reviewing', 'department_review'];
   return validStatuses.includes(lower) ? (lower as AppStatus) : 'pending';
 }
@@ -38,6 +41,7 @@ export default function MyApplications() {
   const [selected, setSelected] = useState<ApplicationItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [resumeLoading, setResumeLoading] = useState(false);
+  const [decisionLoading, setDecisionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const loadApplications = async () => {
@@ -73,6 +77,24 @@ export default function MyApplications() {
       setResumeLoading(false);
     }
   };
+
+  const handleOfferDecision = async (applicationId: string, decision: "accept" | "decline") => {
+    const nextStatus = decision === "accept" ? "OFFER_ACCEPTED" : "OFFER_DECLINED";
+    try {
+      setDecisionLoading(applicationId);
+      await apiAuthenticationServicePut(`/applications-list/${applicationId}/status`, { status: nextStatus });
+      const refreshed = await apiAuthenticationServiceGet('/applications-list/mine');
+      setApplications(Array.isArray(refreshed.data) ? refreshed.data : []);
+      setDetailOpen(false);
+      setSelected(null);
+    } catch (err) {
+      console.error("Failed to update internship decision:", err);
+    } finally {
+      setDecisionLoading(null);
+    }
+  };
+
+  const hasAcceptedOffer = applications.some((app) => ["accepted", "offer_accepted", "OFFER_ACCEPTED"].includes((app.status || "").toLowerCase()));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -153,6 +175,23 @@ export default function MyApplications() {
                   <Button variant="outline" size="sm" className="w-full" onClick={viewResume} disabled={resumeLoading}>
                     {resumeLoading ? "Loading…" : "View Submitted Resume"}
                   </Button>
+                )}
+                {toAppStatus(selected.status, selected.departmentApprovalRequired) === "offer_sent" && (
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Company decision</p>
+                    <p className="text-sm text-muted-foreground">The company accepted your application. Do you still want to do this internship?</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button onClick={() => void handleOfferDecision(selected.id, "accept")} disabled={decisionLoading === selected.id || hasAcceptedOffer}>
+                        {decisionLoading === selected.id ? "Processing..." : "Accept Internship"}
+                      </Button>
+                      <Button variant="outline" onClick={() => void handleOfferDecision(selected.id, "decline")} disabled={decisionLoading === selected.id}>
+                        {decisionLoading === selected.id ? "Processing..." : "Decline Internship"}
+                      </Button>
+                    </div>
+                    {hasAcceptedOffer && (
+                      <p className="text-xs text-destructive">You have already accepted an internship offer, so you can no longer accept another one.</p>
+                    )}
+                  </div>
                 )}
               </div>
             </>

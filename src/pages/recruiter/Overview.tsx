@@ -46,7 +46,7 @@ export default function RecruiterOverview() {
   const activePostings = internships.filter((i) => i.status === "ACTIVE").length;
   const totalApplicants = applications.length;
   const totalViews = internships.reduce((sum, i) => sum + (i.viewCount || 0), 0);
-  const hired = applications.filter((a) => a.status?.toUpperCase() === "ACCEPTED").length;
+  const hired = applications.filter((a) => ["ACCEPTED", "OFFER_ACCEPTED"].includes((a.status || "").toUpperCase())).length;
 
   const recentPosts = [...internships]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

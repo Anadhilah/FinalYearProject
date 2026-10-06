@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { LayoutDashboard, Users, Settings, LogOut, Menu, X, Building2, GraduationCap, ClipboardCheck } from "lucide-react";
-import logo from "@/assets/logo.png";
+import icon from "@/assets/icon.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ export default function AdminLayout() {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-background/10">
-          <img src={logo} alt="InternshipConnect" className="h-8 w-8 rounded-lg object-contain" />
+          <img src={icon} alt="InternshipConnect" className="h-8 w-8 rounded-lg object-contain" />
           <span className="font-display font-bold text-sm">Admin Panel</span>
           <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />

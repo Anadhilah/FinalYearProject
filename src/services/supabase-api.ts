@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { TABLES, STORAGE } from "@/lib/supabaseTables";
+import { normalizeApplicationStatus } from "@/lib/applicationStatus";
 import CryptoJS from "crypto-js";
 
 /* ============================================================
@@ -2104,21 +2105,45 @@ async function isAvailableDepartmentCoordinator(coordinatorId: string): Promise<
   return Boolean(data);
 }
 
-/**
- * Normalizes an ApplicationStatus enum value to UPPERCASE.
- * The database enum uses uppercase values (PENDING, ACCEPTED, REJECTED,
- * REVIEWING), while the UI uses lowercase. This keeps both in sync.
- */
-function normalizeApplicationStatus(status: string): string {
-  return status.toUpperCase();
-}
-
-/** Updates an application status (recruiter action). */
+/** Updates an application status (recruiter action or student offer decision). */
 export async function updateApplicationStatus(id: string, status: string): Promise<void> {
+  const normalizedStatus = normalizeApplicationStatus(status);
+  const { data: existing, error: existingError } = await supabase
+    .from(TABLES.APPLICATION)
+    .select("id, studentId, status")
+    .eq("id", id)
+    .maybeSingle();
+  throwIfError(existingError, "Failed to load application for status update");
+
+  if (!existing) {
+    throw new Error("Application not found.");
+  }
+
+  if (normalizedStatus === "OFFER_ACCEPTED") {
+    const { data: activeOffers, error: checkError } = await supabase
+      .from(TABLES.APPLICATION)
+      .select("id")
+      .eq("studentId", existing.studentId)
+      .in("status", ["ACCEPTED", "OFFER_ACCEPTED"])
+      .neq("id", id);
+    throwIfError(checkError, "Failed to check for other accepted offers");
+    if ((activeOffers || []).length > 0) {
+      throw new Error("You already accepted an internship offer. Please complete that placement before accepting another one.");
+    }
+
+    const { error: declineError } = await supabase
+      .from(TABLES.APPLICATION)
+      .update({ status: "OFFER_DECLINED", updatedAt: new Date().toISOString() })
+      .eq("studentId", existing.studentId)
+      .in("status", ["PENDING", "REVIEWING", "OFFER_SENT"]) 
+      .neq("id", id);
+    throwIfError(declineError, "Failed to clear competing internship offers");
+  }
+
   const { error } = await supabase
     .from(TABLES.APPLICATION)
     .update({
-      status: normalizeApplicationStatus(status),
+      status: normalizedStatus,
       updatedAt: new Date().toISOString(),
     })
     .eq("id", id);
@@ -3098,7 +3123,8 @@ export async function countStudentsBySupervisor(supervisorId: string): Promise<n
   const { data, error } = await supabase
     .from(TABLES.APPLICATION)
     .select("studentId")
-    .in("internshipId", ids);
+    .in("internshipId", ids)
+    .in("status", ["ACCEPTED", "OFFER_ACCEPTED"]);
   if (error) return 0;
   return new Set((data || []).map((r) => r.studentId)).size;
 }
@@ -3158,7 +3184,8 @@ export async function fetchSupervisorStudents(): Promise<
   const { data, error } = await supabase
     .from(TABLES.APPLICATION)
     .select("studentId, internshipId, student:studentId(id, name, email, university, major)")
-    .in("internshipId", ids);
+    .in("internshipId", ids)
+    .in("status", ["ACCEPTED", "OFFER_ACCEPTED"]);
   if (error) throw new Error("Failed to load your students.");
 
   const byStudent = new Map<string, { student: { id: string; name?: string | null; email?: string | null; university?: string | null; major?: string | null }; internships: Array<{ id: string; title: string; company?: string | null; startDate?: string | null; endDate?: string | null; status?: string | null }> }>();

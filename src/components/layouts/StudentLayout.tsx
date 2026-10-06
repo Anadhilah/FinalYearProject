@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { ClipboardList, LayoutDashboard, User, Search, FileText, MessageCircle, Video, LogOut, Menu, X } from "lucide-react";
-import logo from "@/assets/logo.png";
+import icon from "@/assets/icon.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -66,7 +66,7 @@ export default function StudentLayout() {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sidebar-border">
-          <img src={logo} alt="InternshipConnect" className="h-8 w-8 rounded-lg object-contain" />
+          <img src={icon} alt="InternshipConnect" className="h-8 w-8 rounded-lg object-contain" />
           <span className="font-display font-bold text-sm text-sidebar-primary-foreground">InternshipConnect</span>
           <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />

@@ -82,9 +82,9 @@ const token = localStorage.getItem("access_token");
 
   const stats = useMemo(() => {
     const total = applications.length;
-    const accepted = applications.filter((app) => app.status?.toUpperCase() === "ACCEPTED").length;
-    const pending = applications.filter((app) => ["PENDING", "REVIEWING"].includes(app.status?.toUpperCase())).length;
-    const rejected = applications.filter((app) => app.status?.toUpperCase() === "REJECTED").length;
+    const accepted = applications.filter((app) => ["ACCEPTED", "OFFER_ACCEPTED"].includes(app.status?.toUpperCase() || "")).length;
+    const pending = applications.filter((app) => ["PENDING", "REVIEWING", "OFFER_SENT"].includes(app.status?.toUpperCase() || "")).length;
+    const rejected = applications.filter((app) => ["REJECTED", "OFFER_DECLINED"].includes(app.status?.toUpperCase() || "")).length;
 
     return { total, accepted, pending, rejected };
   }, [applications]);

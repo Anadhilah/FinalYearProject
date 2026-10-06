@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { FileUploadField } from "@/components/FileUploadField";
 import { cn } from "@/lib/utils";
 import { Building2, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Apply() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +29,7 @@ export default function Apply() {
   const [endDate, setEndDate] = useState("");
   const [supportRequested, setSupportRequested] = useState<boolean | null>(null);
   const [selectedCoordinatorId, setSelectedCoordinatorId] = useState("");
+  const [coordinatorSearch, setCoordinatorSearch] = useState("");
   const [coordinators, setCoordinators] = useState<DepartmentCoordinatorOption[]>([]);
   const [coordinatorsLoading, setCoordinatorsLoading] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -72,6 +72,22 @@ export default function Apply() {
     .filter(Boolean);
 
   const questionKeys = Object.keys(answers);
+  const filteredCoordinators = coordinators.filter((coordinator) => {
+    const searchText = coordinatorSearch.trim().toLowerCase();
+    if (!searchText) return true;
+
+    const haystack = [
+      coordinator.name,
+      coordinator.positionTitle,
+      coordinator.email,
+      coordinator.department?.name,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(searchText);
+  });
 
   const loadCoordinators = async () => {
     setCoordinatorsLoading(true);
@@ -91,11 +107,11 @@ export default function Apply() {
     e.preventDefault();
     if (!id) return;
     if (!cvFile) {
-      setError("Please upload your CV / resume before submitting.");
+      setError("Required: upload your CV/resume before submitting your application.");
       return;
     }
     if (supportRequested === true && !selectedCoordinatorId) {
-      setError("Please select a department coordinator for your support request.");
+      setError("Required: choose a department coordinator before continuing with support requests.");
       return;
     }
     try {
@@ -262,20 +278,42 @@ export default function Apply() {
               </div>
               {supportRequested === true && (
                 <div className="space-y-2">
-                  <Label htmlFor="department-coordinator">Choose your department coordinator</Label>
-                  <Select value={selectedCoordinatorId} onValueChange={setSelectedCoordinatorId} disabled={coordinatorsLoading || coordinators.length === 0}>
-                    <SelectTrigger id="department-coordinator">
-                      <SelectValue placeholder={coordinatorsLoading ? "Loading coordinators..." : "Select a coordinator"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {coordinators.map((coordinator) => (
-                        <SelectItem key={coordinator.id} value={coordinator.id}>
-                          {coordinator.name} - {coordinator.positionTitle || "Department Coordinator"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!coordinatorsLoading && coordinators.length === 0 && <p className="text-sm text-destructive">No active department coordinators are available for your department.</p>}
+                  <Label htmlFor="department-coordinator-search" className="inline-flex items-center gap-1">
+                    Choose your department coordinator <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="department-coordinator-search"
+                    value={coordinatorSearch}
+                    onChange={(e) => setCoordinatorSearch(e.target.value)}
+                    placeholder="Search by name, role, or department"
+                    disabled={coordinatorsLoading || coordinators.length === 0}
+                  />
+                  <div className="max-h-48 overflow-y-auto rounded-md border bg-background">
+                    {coordinatorsLoading ? (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">Loading coordinators…</p>
+                    ) : filteredCoordinators.length > 0 ? (
+                      filteredCoordinators.map((coordinator) => (
+                        <button
+                          key={coordinator.id}
+                          type="button"
+                          onClick={() => setSelectedCoordinatorId(coordinator.id)}
+                          className={cn(
+                            "flex w-full items-center justify-between border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent/50",
+                            selectedCoordinatorId === coordinator.id && "bg-accent text-accent-foreground"
+                          )}
+                        >
+                          <span>
+                            <span className="block font-medium">{coordinator.name}</span>
+                            <span className="text-xs opacity-80">{coordinator.positionTitle || "Department Coordinator"}</span>
+                          </span>
+                          {selectedCoordinatorId === coordinator.id && <span className="text-xs font-medium">Selected</span>}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">No matching coordinators found.</p>
+                    )}
+                  </div>
+                  {!coordinatorsLoading && coordinators.length === 0 && <p className="text-sm text-destructive">No active department coordinators are available for your department yet.</p>}
                 </div>
               )}
             </div>
