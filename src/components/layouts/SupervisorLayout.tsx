@@ -1,16 +1,18 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Users, FileText, MessageCircle, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, FileText, MessageCircle, ClipboardCheck, LogOut, Menu, X } from "lucide-react";
 import icon from "@/assets/icon.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useMessages } from "@/contexts/MessagesContext";
+import { InternshipCompletionAlerts } from "@/components/InternshipCompletionAlerts";
 
 const navItems = [
   { label: "Overview", path: "/supervisor", icon: LayoutDashboard },
   { label: "My Students", path: "/supervisor/students", icon: Users },
   { label: "Summaries", path: "/supervisor/summaries", icon: FileText },
+  { label: "Internship Completion", path: "/supervisor/completion", icon: ClipboardCheck },
   { label: "Messages", path: "/supervisor/messages", icon: MessageCircle },
 ];
 
@@ -22,8 +24,9 @@ export default function SupervisorLayout() {
 
   return (
     <div className="min-h-screen flex bg-muted/30">
+      <InternshipCompletionAlerts />
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sidebar-border">
@@ -33,7 +36,7 @@ export default function SupervisorLayout() {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (

@@ -14,6 +14,7 @@ import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 import ChangePassword from "./pages/ChangePassword";
+import InternshipCompletion from "./pages/InternshipCompletion";
 
 import StudentLayout from "./components/layouts/StudentLayout";
 import StudentOnboarding from "./pages/student/Onboarding";
@@ -113,6 +114,7 @@ function App() {
               <Route path="internships/:id" element={<InternshipDetails />} />
               <Route path="internships/:id/apply" element={<Apply />} />
               <Route path="applications" element={<MyApplications />} />
+              <Route path="internship-history" element={<InternshipCompletion />} />
               <Route path="tasks" element={<StudentTasks />} />
               <Route path="messages" element={<StudentMessages />} />
               <Route path="meetings" element={<StudentMeetings />} />
@@ -145,6 +147,7 @@ function App() {
               <Route index element={<SupervisorOverview />} />
               <Route path="students" element={<SupervisorStudents />} />
               <Route path="summaries" element={<SupervisorSummaries />} />
+              <Route path="completion" element={<InternshipCompletion />} />
               <Route path="students/:studentId" element={<SupervisorStudentDetails />} />
               <Route path="students/:studentId/tasks" element={<SupervisorAssignTasks />} />
               <Route path="messages" element={<SupervisorMessages />} />
@@ -155,6 +158,7 @@ function App() {
               <Route index element={<FacultyCoordinatorOverview />} />
               <Route path="departments" element={<FacultyCoordinatorDepartments />} />
               <Route path="reports" element={<FacultyCoordinatorReports />} />
+              <Route path="final-reports" element={<InternshipCompletion />} />
               <Route path="messages" element={<FacultyCoordinatorMessages />} />
               <Route path="students" element={<FacultyCoordinatorStudents />} />
               <Route path="students/:studentId" element={<FacultyCoordinatorStudentDetails />} />
@@ -170,6 +174,7 @@ function App() {
               <Route path="faculty-coordinators" element={<DepartmentCoordinatorFacultyCoordinators />} />
               <Route path="organisations" element={<DepartmentCoordinatorOrganisations />} />
               <Route path="summaries" element={<DepartmentCoordinatorSummaries />} />
+              <Route path="completion" element={<InternshipCompletion />} />
               <Route path="placements" element={<DepartmentCoordinatorPlacements />} />
             </Route>
 

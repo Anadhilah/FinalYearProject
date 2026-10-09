@@ -210,6 +210,19 @@ The system uses a `Role` enum in the database with the following major actors:
 
 The project includes academic scope data such as institutions, faculties, departments, and staff assignments to support routing, oversight, and approvals for department-based workflows.
 
+### 6. Internship completion and extensions
+
+Completion is tracked per accepted student placement in `InternshipCompletionWorkflow`. This keeps an extension or early end for one student from changing the shared internship posting dates for other students.
+
+1. The completion refresh creates a placement record for an accepted application with an assigned company supervisor, including when no end date was set. Reaching an end date changes the record to `END_DATE_REACHED`; it does not automatically complete the placement.
+2. The company supervisor can request an extension with a new end date and reason, or end the placement. The supervisor can also end an active placement before its due date by providing a reason.
+3. The student accepts or declines an extension. Acceptance updates that placement's effective end date; declining sends it to final-report submission.
+4. The company supervisor submits a final report and assessment. The student can view and acknowledge it but cannot edit the assessment.
+5. The assigned Faculty Coordinator can approve the report, request clarification, or add comments. Approval marks the placement workflow `COMPLETED` and makes it visible in the student's Internship History.
+6. The student's relevant Department Coordinator can see the placement after completion. In-app notices are shown in the relevant role portal when workflow states change.
+
+The workflow is available from these role portals: company supervisors at `/supervisor/completion`, students at `/student/internship-history`, Faculty Coordinators at `/faculty-coordinator/final-reports`, and Department Coordinators at `/department-coordinator/completion`.
+
 ## Database Design
 
 The canonical database schema is in [supabase/schema.sql](supabase/schema.sql). The backend uses PostgreSQL with text-based IDs, camelCase columns, enums, relational references, timestamps, and RLS rules.
@@ -241,6 +254,7 @@ The canonical database schema is in [supabase/schema.sql](supabase/schema.sql). 
 - `SupervisorTask`: task assignments and updates
 - `WeeklyLogbookReport`: student report weeks and progress evidence
 - `SupervisorSummary`: summary sent from supervisors to faculty coordinators
+- `InternshipCompletionWorkflow`: per-placement end-date, extension, early-end reason, final report, student acknowledgement, university review, and completion state
 
 #### Invitations and onboarding
 
@@ -409,6 +423,8 @@ Do not expose service-role secrets, DB passwords, or private provider credential
 ### Apply schema and migrations
 
 The project has a canonical schema in [supabase/schema.sql](supabase/schema.sql). For a fresh environment, apply the schema first, then run migrations in order under [supabase/migrations](supabase/migrations).
+
+The completion workflow depends on the incremental migrations `20261008_internship_completion_workflow.sql`, `20261009_early_internship_end.sql`, and `20261010_optional_internship_end_date.sql`, applied in that order. If setting up a fresh project, apply earlier migrations first as well; the application offer-status migrations `20261006_application_offer_statuses.sql` and `20261007_atomic_student_offer_confirmation.sql` precede the completion workflow.
 
 ### Edge functions
 

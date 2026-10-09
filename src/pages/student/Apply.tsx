@@ -117,7 +117,7 @@ export default function Apply() {
     try {
       setSubmitting(true);
       const resumePath = cvFile ? await uploadToStorage("resume", cvFile) : null;
-      const coverPath = coverLetterFile ? await uploadToStorage("cover-letter", coverLetterFile) : null2;
+      const coverPath = coverLetterFile ? await uploadToStorage("cover-letter", coverLetterFile) : null;
       const payload: ApplicationPayload = {
         internshipId: id,
         coverLetter: message || undefined,

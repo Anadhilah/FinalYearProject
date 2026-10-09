@@ -162,6 +162,93 @@ export async function fetchInternships(recruiterOnly = false): Promise<Internshi
   return internships;
 }
 
+export type InternshipCompletionStatus =
+  | "ACTIVE"
+  | "END_DATE_REACHED"
+  | "EXTENSION_REQUESTED"
+  | "REPORT_DUE"
+  | "REPORT_SUBMITTED"
+  | "CLARIFICATION_REQUESTED"
+  | "COMPLETED";
+
+export interface InternshipCompletionWorkflow {
+  id: string;
+  applicationId: string;
+  internshipId: string;
+  studentId: string;
+  companySupervisorId: string | null;
+  facultyCoordinatorId: string | null;
+  departmentCoordinatorId: string | null;
+  studentName: string;
+  internshipTitle: string;
+  companyName: string;
+  companySupervisorName: string | null;
+  facultyCoordinatorName: string | null;
+  departmentCoordinatorName: string | null;
+  initialEndDate: string | null;
+  currentEndDate: string | null;
+  status: InternshipCompletionStatus;
+  extensionEndDate: string | null;
+  extensionReason: string | null;
+  extensionDecision: "ACCEPTED" | "DECLINED" | null;
+  earlyEndReason?: string | null;
+  earlyEndedAt?: string | null;
+  reportSummary: string | null;
+  reportAssessment: string | null;
+  reportSubmittedAt: string | null;
+  studentAcknowledgedAt: string | null;
+  reviewDecision: string | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
+  completedAt: string | null;
+}
+
+export type InternshipCompletionAction =
+  | "REQUEST_EXTENSION"
+  | "END_INTERNSHIP"
+  | "END_INTERNSHIP_EARLY"
+  | "ACCEPT_EXTENSION"
+  | "DECLINE_EXTENSION"
+  | "SUBMIT_FINAL_REPORT"
+  | "ACKNOWLEDGE_REPORT"
+  | "APPROVE_REPORT"
+  | "REQUEST_CLARIFICATION"
+  | "COMMENT_ON_REPORT";
+
+export async function fetchInternshipCompletionWorkflows(): Promise<InternshipCompletionWorkflow[]> {
+  const { error: refreshError } = await supabase.rpc("refresh_internship_completion_workflows");
+  throwIfError(refreshError, "Failed to refresh internship completion records");
+
+  const { data, error } = await supabase
+    .from(TABLES.INTERNSHIP_COMPLETION)
+    .select("*")
+    .order("currentEndDate", { ascending: true });
+  throwIfError(error, "Failed to load internship completion records");
+  return (data as InternshipCompletionWorkflow[]) || [];
+}
+
+export async function transitionInternshipCompletionWorkflow(
+  workflowId: string,
+  action: InternshipCompletionAction,
+  payload: Record<string, unknown> = {},
+): Promise<void> {
+  if (action === "END_INTERNSHIP_EARLY") {
+    const { error } = await supabase.rpc("end_internship_early", {
+      p_workflow_id: workflowId,
+      p_reason: payload.reason,
+    });
+    throwIfError(error, "Failed to end internship early");
+    return;
+  }
+
+  const { error } = await supabase.rpc("transition_internship_completion_workflow", {
+    p_workflow_id: workflowId,
+    p_action: action,
+    p_payload: payload,
+  });
+  throwIfError(error, "Failed to update internship completion");
+}
+
 /** Fetches a single internship by id. */
 export async function fetchInternshipById(id: string): Promise<Internship | null> {
   const { data, error } = await supabase
@@ -2108,6 +2195,15 @@ async function isAvailableDepartmentCoordinator(coordinatorId: string): Promise<
 /** Updates an application status (recruiter action or student offer decision). */
 export async function updateApplicationStatus(id: string, status: string): Promise<void> {
   const normalizedStatus = normalizeApplicationStatus(status);
+  if (normalizedStatus === "OFFER_ACCEPTED" || normalizedStatus === "OFFER_DECLINED") {
+    const { error } = await supabase.rpc("respond_to_internship_offer", {
+      p_application_id: id,
+      p_decision: normalizedStatus === "OFFER_ACCEPTED" ? "ACCEPT" : "DECLINE",
+    });
+    throwIfError(error, "Failed to record your internship offer decision");
+    return;
+  }
+
   const { data: existing, error: existingError } = await supabase
     .from(TABLES.APPLICATION)
     .select("id, studentId, status")
@@ -2117,27 +2213,6 @@ export async function updateApplicationStatus(id: string, status: string): Promi
 
   if (!existing) {
     throw new Error("Application not found.");
-  }
-
-  if (normalizedStatus === "OFFER_ACCEPTED") {
-    const { data: activeOffers, error: checkError } = await supabase
-      .from(TABLES.APPLICATION)
-      .select("id")
-      .eq("studentId", existing.studentId)
-      .in("status", ["ACCEPTED", "OFFER_ACCEPTED"])
-      .neq("id", id);
-    throwIfError(checkError, "Failed to check for other accepted offers");
-    if ((activeOffers || []).length > 0) {
-      throw new Error("You already accepted an internship offer. Please complete that placement before accepting another one.");
-    }
-
-    const { error: declineError } = await supabase
-      .from(TABLES.APPLICATION)
-      .update({ status: "OFFER_DECLINED", updatedAt: new Date().toISOString() })
-      .eq("studentId", existing.studentId)
-      .in("status", ["PENDING", "REVIEWING", "OFFER_SENT"]) 
-      .neq("id", id);
-    throwIfError(declineError, "Failed to clear competing internship offers");
   }
 
   const { error } = await supabase

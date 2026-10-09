@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { getApplicationBadgeStatus } from "@/lib/applicationStatus";
 import { cn } from "@/lib/utils";
 
 type Status = "pending" | "accepted" | "rejected" | "reviewing" | "department_review" | "offer_sent";
@@ -12,8 +13,8 @@ const statusConfig: Record<Status, { label: string; className: string }> = {
   offer_sent: { label: "Offer sent", className: "bg-sky-500/10 text-sky-700 border-sky-500/20" },
 };
 
-export function StatusBadge({ status }: { status: Status }) {
-  const config = statusConfig[status];
+export function StatusBadge({ status }: { status: string | null | undefined }) {
+  const config = statusConfig[getApplicationBadgeStatus(status) as Status] || statusConfig.pending;
   return (
     <Badge variant="outline" className={cn("font-medium text-xs", config.className)}>
       {config.label}

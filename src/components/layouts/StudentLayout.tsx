@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ClipboardList, LayoutDashboard, User, Search, FileText, MessageCircle, Video, LogOut, Menu, X } from "lucide-react";
+import { ClipboardList, LayoutDashboard, User, Search, FileText, MessageCircle, Video, History, LogOut, Menu, X } from "lucide-react";
 import icon from "@/assets/icon.png";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -9,12 +9,14 @@ import { useMessages } from "@/contexts/MessagesContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { TABLES } from "@/lib/supabaseTables";
+import { InternshipCompletionAlerts } from "@/components/InternshipCompletionAlerts";
 
 const navItems = [
   { label: "Overview", path: "/student", icon: LayoutDashboard },
   { label: "My Profile", path: "/student/profile", icon: User },
   { label: "Browse Internships", path: "/student/internships", icon: Search },
   { label: "My Applications", path: "/student/applications", icon: FileText },
+  { label: "Internship History", path: "/student/internship-history", icon: History },
   { label: "Tasks", path: "/student/tasks", icon: ClipboardList },
   { label: "Messages", path: "/student/messages", icon: MessageCircle },
   { label: "Meetings", path: "/student/meetings", icon: Video },
@@ -60,9 +62,10 @@ export default function StudentLayout() {
 
   return (
     <div className="min-h-screen flex bg-muted/30">
+      <InternshipCompletionAlerts />
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sidebar-border">
@@ -72,7 +75,7 @@ export default function StudentLayout() {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (

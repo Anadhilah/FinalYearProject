@@ -19,6 +19,7 @@ export const TABLES = {
   DEPARTMENT: "Department",
   STUDENT_INSTITUTION_AFFILIATION: "StudentInstitutionAffiliation",
   COORDINATOR_ASSIGNMENT: "CoordinatorAssignment",
+  INTERNSHIP_COMPLETION: "InternshipCompletionWorkflow",
 } as const;
 
 export const STORAGE = {

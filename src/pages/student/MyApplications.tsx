@@ -42,6 +42,7 @@ export default function MyApplications() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [resumeLoading, setResumeLoading] = useState(false);
   const [decisionLoading, setDecisionLoading] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadApplications = async () => {
@@ -82,6 +83,7 @@ export default function MyApplications() {
     const nextStatus = decision === "accept" ? "OFFER_ACCEPTED" : "OFFER_DECLINED";
     try {
       setDecisionLoading(applicationId);
+      setDecisionError(null);
       await apiAuthenticationServicePut(`/applications-list/${applicationId}/status`, { status: nextStatus });
       const refreshed = await apiAuthenticationServiceGet('/applications-list/mine');
       setApplications(Array.isArray(refreshed.data) ? refreshed.data : []);
@@ -89,12 +91,13 @@ export default function MyApplications() {
       setSelected(null);
     } catch (err) {
       console.error("Failed to update internship decision:", err);
+      setDecisionError(err instanceof Error ? err.message : "Could not record your decision. Please try again.");
     } finally {
       setDecisionLoading(null);
     }
   };
 
-  const hasAcceptedOffer = applications.some((app) => ["accepted", "offer_accepted", "OFFER_ACCEPTED"].includes((app.status || "").toLowerCase()));
+  const hasAcceptedOffer = applications.some((app) => ["accepted", "offer_accepted"].includes((app.status || "").toLowerCase()));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -188,6 +191,7 @@ export default function MyApplications() {
                         {decisionLoading === selected.id ? "Processing..." : "Decline Internship"}
                       </Button>
                     </div>
+                    {decisionError && <p className="text-xs text-destructive">{decisionError}</p>}
                     {hasAcceptedOffer && (
                       <p className="text-xs text-destructive">You have already accepted an internship offer, so you can no longer accept another one.</p>
                     )}

@@ -227,10 +227,10 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     return conversations.reduce((count, conv) => {
       return (
         count +
-        conv.messages.filter((m) => !seenMessageIds.has(m.id)).length
+        conv.messages.filter((message) => message.senderId !== currentUserId && !seenMessageIds.has(message.id)).length
       );
     }, 0);
-  }, [conversations, seenMessageIds]);
+  }, [conversations, currentUserId, seenMessageIds]);
 
   const value = useMemo<MessagesContextValue>(
     () => ({

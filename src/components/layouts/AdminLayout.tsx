@@ -24,7 +24,7 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen flex bg-muted/30">
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-foreground text-background flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-foreground text-background flex flex-col transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-background/10">
@@ -34,7 +34,7 @@ export default function AdminLayout() {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (

@@ -126,6 +126,20 @@ export default function Applicants() {
     }
   };
 
+  const applicantsByInternship = new Map<string, { title: string; applications: ApplicantItem[] }>();
+  applicants.forEach((application) => {
+    const groupKey = application.internship?.id || application.internship?.title || application.id;
+    const group = applicantsByInternship.get(groupKey);
+    if (group) {
+      group.applications.push(application);
+    } else {
+      applicantsByInternship.set(groupKey, {
+        title: application.internship?.title || "Untitled internship",
+        applications: [application],
+      });
+    }
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -145,14 +159,24 @@ export default function Applicants() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Student</TableHead>
-                  <TableHead>Position</TableHead>
                   <TableHead>CV</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Update</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {applicants.map((app) => (
+                {Array.from(applicantsByInternship.entries()).flatMap(([groupKey, group]) => [
+                  <TableRow key={`internship-${groupKey}`} className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={4} className="py-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold">{group.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {group.applications.length} {group.applications.length === 1 ? "applicant" : "applicants"}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>,
+                  ...group.applications.map((app) => (
                   <TableRow key={app.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -176,7 +200,6 @@ export default function Applicants() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p>{app.internship?.title || "—"}</p>
                       {toAppStatus(app.status) === "accepted" && (
                         <Select value={app.internship?.supervisorId || "unassigned"} onValueChange={(value) => void assignSupervisor(app, value === "unassigned" ? "" : value)} disabled={assigningSupervisorId === app.id}>
                           <SelectTrigger className="mt-2 h-8 w-44 text-xs"><SelectValue placeholder="Assign supervisor" /></SelectTrigger>
@@ -207,7 +230,10 @@ export default function Applicants() {
                     <TableCell><StatusBadge status={toAppStatus(app.status)} /></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Select onValueChange={(value) => handleStatusUpdate(app.id, value)}>
+                        <Select
+                          onValueChange={(value) => handleStatusUpdate(app.id, value)}
+                          disabled={["accepted", "rejected"].includes(toAppStatus(app.status))}
+                        >
                           <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Action" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="OFFER_SENT">Send offer</SelectItem>
@@ -221,7 +247,8 @@ export default function Applicants() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )),
+                ])}
               </TableBody>
             </Table>
           )}

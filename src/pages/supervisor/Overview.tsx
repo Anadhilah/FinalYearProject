@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ClipboardList,
   TrendingUp,
-  ArrowRight,
   FileCheck2,
   AlertTriangle,
 } from "lucide-react";
@@ -82,9 +81,6 @@ export default function SupervisorOverview() {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>{student.progress}% complete</span>
-                  <button className="inline-flex items-center gap-1 text-primary">
-                    Open profile <ArrowRight className="h-3 w-3" />
-                  </button>
                 </div>
               </div>); })()
             ))}

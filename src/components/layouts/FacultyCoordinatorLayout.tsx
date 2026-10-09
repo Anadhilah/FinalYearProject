@@ -1,15 +1,17 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Building2, FileText, LogOut, Menu, X, BriefcaseBusiness, KeyRound, MessageCircle, Users } from "lucide-react";
+import { LayoutDashboard, Building2, FileText, LogOut, Menu, X, BriefcaseBusiness, KeyRound, MessageCircle, Users, ClipboardCheck } from "lucide-react";
 import icon from "@/assets/icon.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { InternshipCompletionAlerts } from "@/components/InternshipCompletionAlerts";
 
 const navItems = [
   { label: "Overview", path: "/faculty-coordinator", icon: LayoutDashboard },
   { label: "Departments", path: "/faculty-coordinator/departments", icon: Building2 },
   { label: "Reports", path: "/faculty-coordinator/reports", icon: FileText },
+  { label: "Final internship reports", path: "/faculty-coordinator/final-reports", icon: ClipboardCheck },
   { label: "Messages", path: "/faculty-coordinator/messages", icon: MessageCircle },
   { label: "Assigned students", path: "/faculty-coordinator/students", icon: Users },
   { label: "Placements", path: "/faculty-coordinator/placements", icon: BriefcaseBusiness },
@@ -23,8 +25,9 @@ export default function FacultyCoordinatorLayout() {
 
   return (
     <div className="min-h-screen flex bg-muted/30">
+      <InternshipCompletionAlerts />
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sidebar-border">
@@ -35,7 +38,7 @@ export default function FacultyCoordinatorLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (

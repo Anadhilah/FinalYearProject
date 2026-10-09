@@ -1,4 +1,7 @@
+import { useState } from "react";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import type { ChatConversation } from "@/types/chat";
 
 interface ConversationListProps {
@@ -10,6 +13,13 @@ interface ConversationListProps {
 }
 
 export default function ConversationList({ conversations, currentUserId, selectedId, onSelect, compact = false }: ConversationListProps) {
+  const [search, setSearch] = useState("");
+  const searchTerm = search.trim().toLocaleLowerCase();
+  const filteredConversations = conversations.filter((conversation) => {
+    const participant = conversation.participants.find((item) => item.id !== currentUserId);
+    return (participant?.name || "").toLocaleLowerCase().includes(searchTerm);
+  });
+
   const formatDate = (ts: string) => {
     const d = new Date(ts);
     const now = new Date();
@@ -21,9 +31,19 @@ export default function ConversationList({ conversations, currentUserId, selecte
     <div className={cn("flex flex-col", compact ? "h-full" : "")}>
       <div className="p-3 border-b">
         <h3 className="font-display font-semibold text-sm">Messages</h3>
+        <div className="relative mt-3">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search people in your conversations"
+            placeholder="Search people..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-9 pl-9"
+          />
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {conversations.map((conv) => {
+        {filteredConversations.map((conv) => {
           const other = conv.participants.find((p) => p.id !== currentUserId);
           const lastMsg = conv.messages[conv.messages.length - 1];
           const active = selectedId === conv.id;
@@ -50,6 +70,11 @@ export default function ConversationList({ conversations, currentUserId, selecte
             </button>
           );
         })}
+        {filteredConversations.length === 0 && (
+          <p className="p-4 text-center text-xs text-muted-foreground">
+            {searchTerm ? "No people match your search." : "No conversations yet."}
+          </p>
+        )}
       </div>
     </div>
   );
