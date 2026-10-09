@@ -185,15 +185,24 @@ export default function InternshipCompletion() {
                           onChange={(event) => setEarlyEndReasons((current) => ({ ...current, [workflow.id]: event.target.value }))}
                           rows={3}
                           maxLength={2000}
-                          placeholder="Provide a clear reason for ending this internship early."
+                          placeholder={workflow.currentEndDate
+                            ? "Provide a clear reason for ending this internship early."
+                            : "Provide a clear reason for ending this internship."}
                         />
                       </div>
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => void runAction(workflow, "END_INTERNSHIP_EARLY", { reason: earlyEndReasons[workflow.id] || "" }, "Internship ended early; final report is due")}
+                        onClick={() => void runAction(
+                          workflow,
+                          "END_INTERNSHIP_EARLY",
+                          { reason: earlyEndReasons[workflow.id] || "" },
+                          workflow.currentEndDate
+                            ? "Internship ended early; final report is due"
+                            : "Internship ended; final report is due",
+                        )}
                         disabled={busy || !earlyEndReasons[workflow.id]?.trim()}
-                      >End internship early</Button>
+                      >{workflow.currentEndDate ? "End internship early" : "End internship"}</Button>
                     </div>
                   )}
 
