@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { BriefcaseBusiness, Clock3, Users } from "lucide-react";
 
 const placements = [
@@ -18,7 +17,6 @@ export default function DepartmentCoordinatorPlacements() {
           <h2 className="text-2xl font-display font-bold">Placements</h2>
           <p className="text-muted-foreground">Monitor where students are placed and how their internship progress is tracking.</p>
         </div>
-        <Button size="sm">Assign placement</Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

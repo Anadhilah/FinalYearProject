@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Building2, FileText, LogOut, Menu, X, BriefcaseBusiness, KeyRound, MessageCircle, Users, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Menu, X, BriefcaseBusiness, KeyRound, MessageCircle, Users, ClipboardCheck } from "lucide-react";
 import icon from "@/assets/icon.png";
 import { LogoutButton } from "@/components/LogoutButton";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,6 @@ import { InternshipCompletionAlerts } from "@/components/InternshipCompletionAle
 
 const navItems = [
   { label: "Overview", path: "/faculty-coordinator", icon: LayoutDashboard },
-  { label: "Departments", path: "/faculty-coordinator/departments", icon: Building2 },
   { label: "Reports", path: "/faculty-coordinator/reports", icon: FileText },
   { label: "Final internship reports", path: "/faculty-coordinator/final-reports", icon: ClipboardCheck },
   { label: "Messages", path: "/faculty-coordinator/messages", icon: MessageCircle },
